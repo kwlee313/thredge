@@ -3,6 +3,8 @@ package com.thredge.backend.domain.repository
 import com.thredge.backend.domain.entity.EntryEntity
 import com.thredge.backend.domain.entity.ThreadEntity
 import java.util.UUID
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
@@ -11,9 +13,17 @@ interface ThreadRepository : JpaRepository<ThreadEntity, UUID> {
     fun findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
         ownerUsername: String,
     ): List<ThreadEntity>
+    fun findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
+        ownerUsername: String,
+        pageable: Pageable,
+    ): Page<ThreadEntity>
     fun findByOwnerUsernameAndIsHiddenTrueOrderByLastActivityAtDesc(
         ownerUsername: String,
     ): List<ThreadEntity>
+    fun findByOwnerUsernameAndIsHiddenTrueOrderByLastActivityAtDesc(
+        ownerUsername: String,
+        pageable: Pageable,
+    ): Page<ThreadEntity>
     fun findAllByCategoriesIdAndOwnerUsername(categoryId: UUID, ownerUsername: String): List<ThreadEntity>
     fun findByIdAndOwnerUsername(id: UUID, ownerUsername: String): ThreadEntity?
 
@@ -34,7 +44,8 @@ interface ThreadRepository : JpaRepository<ThreadEntity, UUID> {
     fun searchVisibleThreads(
         @Param("ownerUsername") ownerUsername: String,
         @Param("query") query: String,
-    ): List<ThreadEntity>
+        pageable: Pageable,
+    ): Page<ThreadEntity>
 
     @Query(
         """
@@ -53,5 +64,6 @@ interface ThreadRepository : JpaRepository<ThreadEntity, UUID> {
     fun searchHiddenThreads(
         @Param("ownerUsername") ownerUsername: String,
         @Param("query") query: String,
-    ): List<ThreadEntity>
+        pageable: Pageable,
+    ): Page<ThreadEntity>
 }

@@ -2,6 +2,7 @@ package com.thredge.backend.api
 
 import com.thredge.backend.api.dto.EntryDetail
 import com.thredge.backend.api.dto.EntryRequest
+import com.thredge.backend.api.dto.PageResponse
 import com.thredge.backend.api.dto.ThreadCreateRequest
 import com.thredge.backend.api.dto.ThreadDetail
 import com.thredge.backend.api.dto.ThreadSummary
@@ -11,6 +12,9 @@ import com.thredge.backend.support.AuthSupport
 import jakarta.validation.Valid
 import com.thredge.backend.support.ValidationMessages
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
+import org.springframework.data.domain.PageRequest
 import org.springframework.security.core.Authentication
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -31,39 +35,55 @@ class ThreadController(
     private val authSupport: AuthSupport,
 ) {
     @GetMapping
-    fun list(authentication: Authentication?): List<ThreadSummary> {
+    fun list(
+        @RequestParam(defaultValue = "0") @Min(0) page: Int,
+        @RequestParam(defaultValue = "20") @Min(1) @Max(100) size: Int,
+        authentication: Authentication?,
+    ): PageResponse<ThreadSummary> {
         val ownerUsername = authSupport.requireUsername(authentication)
-        return threadService.list(ownerUsername)
+        return threadService.list(ownerUsername, PageRequest.of(page, size))
     }
 
     @GetMapping("/feed")
-    fun feed(authentication: Authentication?): List<ThreadDetail> {
+    fun feed(
+        @RequestParam(defaultValue = "0") @Min(0) page: Int,
+        @RequestParam(defaultValue = "20") @Min(1) @Max(100) size: Int,
+        authentication: Authentication?,
+    ): PageResponse<ThreadDetail> {
         val ownerUsername = authSupport.requireUsername(authentication)
-        return threadService.feed(ownerUsername)
+        return threadService.feed(ownerUsername, PageRequest.of(page, size))
     }
 
     @GetMapping("/search")
     fun searchThreads(
         @RequestParam @NotBlank(message = ValidationMessages.QUERY_REQUIRED) query: String,
+        @RequestParam(defaultValue = "0") @Min(0) page: Int,
+        @RequestParam(defaultValue = "20") @Min(1) @Max(100) size: Int,
         authentication: Authentication?,
-    ): List<ThreadDetail> {
+    ): PageResponse<ThreadDetail> {
         val ownerUsername = authSupport.requireUsername(authentication)
-        return threadService.searchThreads(ownerUsername, query)
+        return threadService.searchThreads(ownerUsername, query, PageRequest.of(page, size))
     }
 
     @GetMapping("/hidden")
-    fun listHidden(authentication: Authentication?): List<ThreadSummary> {
+    fun listHidden(
+        @RequestParam(defaultValue = "0") @Min(0) page: Int,
+        @RequestParam(defaultValue = "20") @Min(1) @Max(100) size: Int,
+        authentication: Authentication?,
+    ): PageResponse<ThreadSummary> {
         val ownerUsername = authSupport.requireUsername(authentication)
-        return threadService.listHidden(ownerUsername)
+        return threadService.listHidden(ownerUsername, PageRequest.of(page, size))
     }
 
     @GetMapping("/hidden/search")
     fun searchHiddenThreads(
         @RequestParam @NotBlank(message = ValidationMessages.QUERY_REQUIRED) query: String,
+        @RequestParam(defaultValue = "0") @Min(0) page: Int,
+        @RequestParam(defaultValue = "20") @Min(1) @Max(100) size: Int,
         authentication: Authentication?,
-    ): List<ThreadSummary> {
+    ): PageResponse<ThreadSummary> {
         val ownerUsername = authSupport.requireUsername(authentication)
-        return threadService.searchHidden(ownerUsername, query)
+        return threadService.searchHidden(ownerUsername, query, PageRequest.of(page, size))
     }
 
     @PostMapping

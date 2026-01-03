@@ -2,6 +2,7 @@ package com.thredge.backend.service
 
 import com.thredge.backend.api.dto.EntryDetail
 import com.thredge.backend.api.dto.EntryUpdateRequest
+import com.thredge.backend.api.dto.PageResponse
 import com.thredge.backend.api.mapper.ThreadMapper
 import com.thredge.backend.domain.entity.EntryEntity
 import com.thredge.backend.domain.repository.EntryRepository
@@ -10,6 +11,7 @@ import com.thredge.backend.support.IdParser
 import com.thredge.backend.support.NotFoundException
 import java.time.Instant
 import java.util.UUID
+import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -19,14 +21,15 @@ class EntryService(
     private val threadRepository: ThreadRepository,
     private val threadMapper: ThreadMapper,
 ) {
-    fun listHidden(ownerUsername: String): List<EntryDetail> =
-        entryRepository.findByThreadOwnerUsernameAndIsHiddenTrueOrderByCreatedAtAsc(ownerUsername)
-            .map(threadMapper::toEntryDetail)
+    fun listHidden(ownerUsername: String, pageable: Pageable): PageResponse<EntryDetail> {
+        val page = entryRepository.findByThreadOwnerUsernameAndIsHiddenTrueOrderByCreatedAtAsc(ownerUsername, pageable)
+        return PageResponse.from(page.map(threadMapper::toEntryDetail))
+    }
 
-    fun searchHidden(ownerUsername: String, query: String): List<EntryDetail> {
+    fun searchHidden(ownerUsername: String, query: String, pageable: Pageable): PageResponse<EntryDetail> {
         val trimmedQuery = query.trim()
-        return entryRepository.searchHiddenEntries(ownerUsername, trimmedQuery)
-            .map(threadMapper::toEntryDetail)
+        val page = entryRepository.searchHiddenEntries(ownerUsername, trimmedQuery, pageable)
+        return PageResponse.from(page.map(threadMapper::toEntryDetail))
     }
 
     @Transactional

@@ -2,6 +2,7 @@ package com.thredge.backend.service
 
 import com.thredge.backend.api.dto.EntryDetail
 import com.thredge.backend.api.dto.EntryRequest
+import com.thredge.backend.api.dto.PageResponse
 import com.thredge.backend.api.dto.ThreadCreateRequest
 import com.thredge.backend.api.dto.ThreadDetail
 import com.thredge.backend.api.dto.ThreadSummary
@@ -18,6 +19,7 @@ import com.thredge.backend.support.IdParser
 import com.thredge.backend.support.NotFoundException
 import java.time.Instant
 import java.util.UUID
+import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -28,29 +30,51 @@ class ThreadService(
     private val categoryRepository: CategoryRepository,
     private val threadMapper: ThreadMapper,
 ) {
-    fun list(ownerUsername: String): List<ThreadSummary> =
-        threadRepository.findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(ownerUsername)
-            .map(threadMapper::toThreadSummary)
-
-    fun feed(ownerUsername: String): List<ThreadDetail> {
-        val threads = threadRepository.findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(ownerUsername)
-        return threads.map(::buildThreadDetail)
+    fun list(ownerUsername: String, pageable: Pageable): PageResponse<ThreadSummary> {
+        val page = threadRepository.findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
+            ownerUsername,
+            pageable,
+        )
+        return PageResponse.from(page.map(threadMapper::toThreadSummary))
     }
 
-    fun searchThreads(ownerUsername: String, query: String): List<ThreadDetail> {
-        val trimmedQuery = query.trim()
-        val threads = threadRepository.searchVisibleThreads(ownerUsername, trimmedQuery)
-        return threads.map(::buildThreadDetail)
+    fun feed(ownerUsername: String, pageable: Pageable): PageResponse<ThreadDetail> {
+        val page = threadRepository.findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
+            ownerUsername,
+            pageable,
+        )
+        val details = buildThreadDetails(page.content)
+        return PageResponse(
+            items = details,
+            page = page.number,
+            size = page.size,
+            totalElements = page.totalElements,
+            totalPages = page.totalPages,
+        )
     }
 
-    fun listHidden(ownerUsername: String): List<ThreadSummary> =
-        threadRepository.findByOwnerUsernameAndIsHiddenTrueOrderByLastActivityAtDesc(ownerUsername)
-            .map(threadMapper::toThreadSummary)
-
-    fun searchHidden(ownerUsername: String, query: String): List<ThreadSummary> {
+    fun searchThreads(ownerUsername: String, query: String, pageable: Pageable): PageResponse<ThreadDetail> {
         val trimmedQuery = query.trim()
-        return threadRepository.searchHiddenThreads(ownerUsername, trimmedQuery)
-            .map(threadMapper::toThreadSummary)
+        val page = threadRepository.searchVisibleThreads(ownerUsername, trimmedQuery, pageable)
+        val details = buildThreadDetails(page.content)
+        return PageResponse(
+            items = details,
+            page = page.number,
+            size = page.size,
+            totalElements = page.totalElements,
+            totalPages = page.totalPages,
+        )
+    }
+
+    fun listHidden(ownerUsername: String, pageable: Pageable): PageResponse<ThreadSummary> {
+        val page = threadRepository.findByOwnerUsernameAndIsHiddenTrueOrderByLastActivityAtDesc(ownerUsername, pageable)
+        return PageResponse.from(page.map(threadMapper::toThreadSummary))
+    }
+
+    fun searchHidden(ownerUsername: String, query: String, pageable: Pageable): PageResponse<ThreadSummary> {
+        val trimmedQuery = query.trim()
+        val page = threadRepository.searchHiddenThreads(ownerUsername, trimmedQuery, pageable)
+        return PageResponse.from(page.map(threadMapper::toThreadSummary))
     }
 
     fun createThread(ownerUsername: String, request: ThreadCreateRequest): ThreadSummary {
@@ -218,5 +242,18 @@ class ThreadService(
     private fun buildThreadDetail(thread: ThreadEntity): ThreadDetail {
         val entries = entryRepository.findByThreadIdOrderByCreatedAtAsc(thread.id!!)
         return threadMapper.toThreadDetail(thread, entries)
+    }
+
+    private fun buildThreadDetails(threads: List<ThreadEntity>): List<ThreadDetail> {
+        if (threads.isEmpty()) {
+            return emptyList()
+        }
+        val threadIds = threads.mapNotNull { it.id }
+        val entries = entryRepository.findByThreadIdInOrderByCreatedAtAsc(threadIds)
+        val groupedEntries = entries.groupBy { it.thread?.id }
+        return threads.map { thread ->
+            val threadEntries = groupedEntries[thread.id].orEmpty()
+            threadMapper.toThreadDetail(thread, threadEntries)
+        }
     }
 }

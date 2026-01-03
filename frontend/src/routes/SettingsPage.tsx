@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -7,7 +7,9 @@ import { z } from 'zod'
 import { supportedLanguages } from '../lib/languages'
 import { useSettingsStore } from '../store/settingsStore'
 import i18n from '../i18n'
-import { createCategory, deleteCategory, fetchCategories, updateCategory } from '../lib/api'
+import { fetchCategories } from '../lib/api'
+import { queryKeys } from '../lib/queryKeys'
+import { useCategoryMutations } from '../hooks/useCategoryMutations'
 
 const schema = z.object({
   uiLanguage: z.enum(supportedLanguages),
@@ -18,7 +20,6 @@ type FormValues = z.infer<typeof schema>
 export function SettingsPage() {
   const { t } = useTranslation()
   const settings = useSettingsStore()
-  const queryClient = useQueryClient()
   const [newCategory, setNewCategory] = useState('')
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [editingCategoryName, setEditingCategoryName] = useState('')
@@ -51,35 +52,21 @@ export function SettingsPage() {
   }
 
   const categoriesQuery = useQuery({
-    queryKey: ['categories'],
+    queryKey: queryKeys.categories,
     queryFn: fetchCategories,
   })
 
-  const createCategoryMutation = useMutation({
-    mutationFn: () => createCategory(newCategory),
-    onSuccess: async () => {
-      setNewCategory('')
-      await queryClient.invalidateQueries({ queryKey: ['categories'] })
-    },
-  })
-
-  const updateCategoryMutation = useMutation({
-    mutationFn: () => updateCategory(editingCategoryId ?? '', editingCategoryName),
-    onSuccess: async () => {
-      setEditingCategoryId(null)
-      setEditingCategoryName('')
-      await queryClient.invalidateQueries({ queryKey: ['categories'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
-    },
-  })
-
-  const deleteCategoryMutation = useMutation({
-    mutationFn: (id: string) => deleteCategory(id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['categories'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
-    },
-  })
+  const { createCategoryMutation, updateCategoryMutation, deleteCategoryMutation } =
+    useCategoryMutations({
+      invalidateThreadsFeed: true,
+      onCreateSuccess: () => {
+        setNewCategory('')
+      },
+      onUpdateSuccess: () => {
+        setEditingCategoryId(null)
+        setEditingCategoryName('')
+      },
+    })
 
   return (
     <div className="space-y-2 sm:space-y-4">
@@ -118,7 +105,7 @@ export function SettingsPage() {
             if (!newCategory.trim()) {
               return
             }
-            createCategoryMutation.mutate()
+            createCategoryMutation.mutate({ name: newCategory })
           }}
         >
           <input
@@ -155,7 +142,10 @@ export function SettingsPage() {
                     if (!editingCategoryName.trim()) {
                       return
                     }
-                    updateCategoryMutation.mutate()
+                    updateCategoryMutation.mutate({
+                      id: editingCategoryId ?? '',
+                      name: editingCategoryName,
+                    })
                   }}
                 >
                   <input
@@ -198,7 +188,7 @@ export function SettingsPage() {
                     <button
                       className="text-xs text-gray-600 hover:underline"
                       type="button"
-                      onClick={() => deleteCategoryMutation.mutate(category.id)}
+                      onClick={() => deleteCategoryMutation.mutate({ id: category.id })}
                       disabled={deleteCategoryMutation.isPending}
                     >
                       {t('settings.delete')}

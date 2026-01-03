@@ -5,6 +5,7 @@ import { useOutletContext } from 'react-router-dom'
 import { login } from '../lib/api'
 import { HomeFeed } from '../components/home/HomeFeed'
 import type { AppOutletContext } from '../App'
+import { queryKeys } from '../lib/queryKeys'
 
 export function HomePage() {
   const { t } = useTranslation()
@@ -16,15 +17,14 @@ export function HomePage() {
   const loginMutation = useMutation({
     mutationFn: () => login(username, password),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.auth.me })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.feed })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.searchRoot })
     },
   })
 
   return (
     <div className="space-y-2 sm:space-y-3">
-
       {!authQuery.isSuccess && (
         <div className="rounded-lg border bg-white p-3 text-gray-900 sm:p-4">
           <div className="text-sm font-semibold">{t('home.loginTitle')}</div>

@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import {
@@ -11,49 +11,35 @@ import {
   searchHiddenEntries,
   searchHiddenThreads,
 } from '../lib/api'
-import { useDebouncedValue } from '../lib/useDebouncedValue'
 import { highlightMatches } from '../lib/highlightMatches'
+import { useArchivedSearch } from '../hooks/useArchivedSearch'
+import { queryKeys } from '../lib/queryKeys'
 
 export function ArchivePage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [threadFilter, setThreadFilter] = useState('')
-  const [entryFilter, setEntryFilter] = useState('')
   const [toast, setToast] = useState<string | null>(null)
 
-  const debouncedThreadFilter = useDebouncedValue(threadFilter.trim(), 250)
-  const debouncedEntryFilter = useDebouncedValue(entryFilter.trim(), 250)
-
-  const hiddenThreadsQuery = useQuery({
-    queryKey: ['threads', 'hidden'],
-    queryFn: fetchHiddenThreads,
-    enabled: debouncedThreadFilter.length === 0,
+  const threads = useArchivedSearch({
+    queryKey: queryKeys.threads.hidden,
+    searchKey: queryKeys.threads.hiddenSearch,
+    fetchAll: fetchHiddenThreads,
+    search: searchHiddenThreads,
   })
 
-  const hiddenThreadSearchQuery = useQuery({
-    queryKey: ['threads', 'hidden', 'search', debouncedThreadFilter],
-    queryFn: () => searchHiddenThreads(debouncedThreadFilter),
-    enabled: debouncedThreadFilter.length > 0,
-  })
-
-  const hiddenEntriesQuery = useQuery({
-    queryKey: ['entries', 'hidden'],
-    queryFn: fetchHiddenEntries,
-    enabled: debouncedEntryFilter.length === 0,
-  })
-
-  const hiddenEntrySearchQuery = useQuery({
-    queryKey: ['entries', 'hidden', 'search', debouncedEntryFilter],
-    queryFn: () => searchHiddenEntries(debouncedEntryFilter),
-    enabled: debouncedEntryFilter.length > 0,
+  const entries = useArchivedSearch({
+    queryKey: queryKeys.entries.hidden,
+    searchKey: queryKeys.entries.hiddenSearch,
+    fetchAll: fetchHiddenEntries,
+    search: searchHiddenEntries,
   })
 
   const restoreThreadMutation = useMutation({
     mutationFn: (id: string) => restoreThread(id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'hidden'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'hidden', 'search'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.feed })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.hidden })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.hiddenSearchRoot })
       setToast(t('archive.restoredThread'))
     },
   })
@@ -61,8 +47,8 @@ export function ArchivePage() {
   const restoreEntryMutation = useMutation({
     mutationFn: (id: string) => restoreEntry(id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['entries', 'hidden'] })
-      await queryClient.invalidateQueries({ queryKey: ['entries', 'hidden', 'search'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.entries.hidden })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.entries.hiddenSearchRoot })
       setToast(t('archive.restoredEntry'))
     },
   })
@@ -74,18 +60,6 @@ export function ArchivePage() {
     const timer = window.setTimeout(() => setToast(null), 2000)
     return () => window.clearTimeout(timer)
   }, [toast])
-
-  const filteredThreads = useMemo(() => {
-    return debouncedThreadFilter.length > 0
-      ? hiddenThreadSearchQuery.data ?? []
-      : hiddenThreadsQuery.data ?? []
-  }, [debouncedThreadFilter.length, hiddenThreadSearchQuery.data, hiddenThreadsQuery.data])
-
-  const filteredEntries = useMemo(() => {
-    return debouncedEntryFilter.length > 0
-      ? hiddenEntrySearchQuery.data ?? []
-      : hiddenEntriesQuery.data ?? []
-  }, [debouncedEntryFilter.length, hiddenEntriesQuery.data, hiddenEntrySearchQuery.data])
 
   return (
     <div className="space-y-2 sm:space-y-4">
@@ -102,22 +76,16 @@ export function ArchivePage() {
         <input
           className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm sm:mt-2"
           placeholder={t('archive.filterThreads')}
-          value={threadFilter}
-          onChange={(event) => setThreadFilter(event.target.value)}
+          value={threads.filter}
+          onChange={(event) => threads.setFilter(event.target.value)}
         />
-        {debouncedThreadFilter.length > 0 && hiddenThreadSearchQuery.isFetching && (
+        {threads.isSearching && (
           <div className="mt-1 text-xs text-gray-500">{t('archive.searching')}</div>
         )}
         <div className="mt-2 space-y-2 sm:mt-3">
-          {(debouncedThreadFilter.length > 0 ? hiddenThreadSearchQuery : hiddenThreadsQuery)
-            .isLoading && (
-            <div className="text-sm text-gray-600">{t('archive.loading')}</div>
-          )}
-          {(debouncedThreadFilter.length > 0 ? hiddenThreadSearchQuery : hiddenThreadsQuery)
-            .isError && (
-            <div className="text-sm text-red-600">{t('archive.error')}</div>
-          )}
-          {filteredThreads.map((thread) => (
+          {threads.isLoading && <div className="text-sm text-gray-600">{t('archive.loading')}</div>}
+          {threads.isError && <div className="text-sm text-red-600">{t('archive.error')}</div>}
+          {threads.filtered.map((thread) => (
             <div
               key={thread.id}
               className="rounded-md border border-gray-200 px-1.5 py-1 sm:px-3 sm:py-2"
@@ -127,7 +95,7 @@ export function ArchivePage() {
                   className="text-sm font-semibold text-gray-900 hover:underline"
                   to={`/threads/${thread.id}`}
                 >
-                  {highlightMatches(thread.title, debouncedThreadFilter)}
+                  {highlightMatches(thread.title, threads.debouncedFilter)}
                 </Link>
                 <button
                   className="text-xs text-gray-700 underline"
@@ -152,9 +120,7 @@ export function ArchivePage() {
               </div>
             </div>
           ))}
-          {!(debouncedThreadFilter.length > 0 ? hiddenThreadSearchQuery : hiddenThreadsQuery)
-            .isLoading &&
-            filteredThreads.length === 0 && (
+          {!threads.isLoading && threads.filtered.length === 0 && (
             <div className="text-sm text-gray-600">{t('archive.emptyThreads')}</div>
           )}
         </div>
@@ -165,28 +131,22 @@ export function ArchivePage() {
         <input
           className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm sm:mt-2"
           placeholder={t('archive.filterEntries')}
-          value={entryFilter}
-          onChange={(event) => setEntryFilter(event.target.value)}
+          value={entries.filter}
+          onChange={(event) => entries.setFilter(event.target.value)}
         />
-        {debouncedEntryFilter.length > 0 && hiddenEntrySearchQuery.isFetching && (
+        {entries.isSearching && (
           <div className="mt-1 text-xs text-gray-500">{t('archive.searching')}</div>
         )}
         <div className="mt-2 space-y-2 sm:mt-3">
-          {(debouncedEntryFilter.length > 0 ? hiddenEntrySearchQuery : hiddenEntriesQuery)
-            .isLoading && (
-            <div className="text-sm text-gray-600">{t('archive.loading')}</div>
-          )}
-          {(debouncedEntryFilter.length > 0 ? hiddenEntrySearchQuery : hiddenEntriesQuery)
-            .isError && (
-            <div className="text-sm text-red-600">{t('archive.error')}</div>
-          )}
-          {filteredEntries.map((entry) => (
+          {entries.isLoading && <div className="text-sm text-gray-600">{t('archive.loading')}</div>}
+          {entries.isError && <div className="text-sm text-red-600">{t('archive.error')}</div>}
+          {entries.filtered.map((entry) => (
             <div
               key={entry.id}
               className="rounded-md border border-gray-200 px-1.5 py-1 sm:px-3 sm:py-2"
             >
               <div className="text-sm text-gray-900">
-                {highlightMatches(entry.body, debouncedEntryFilter)}
+                {highlightMatches(entry.body, entries.debouncedFilter)}
               </div>
               <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
                 <span>
@@ -215,9 +175,7 @@ export function ArchivePage() {
               </div>
             </div>
           ))}
-          {!(debouncedEntryFilter.length > 0 ? hiddenEntrySearchQuery : hiddenEntriesQuery)
-            .isLoading &&
-            filteredEntries.length === 0 && (
+          {!entries.isLoading && entries.filtered.length === 0 && (
             <div className="text-sm text-gray-600">{t('archive.emptyEntries')}</div>
           )}
         </div>

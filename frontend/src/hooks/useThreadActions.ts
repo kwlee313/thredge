@@ -8,6 +8,7 @@ import {
   updateEntry,
   updateThread,
 } from '../lib/api'
+import { queryKeys } from '../lib/queryKeys'
 
 export type InvalidateTarget =
   | 'feed'
@@ -37,19 +38,21 @@ export const useThreadActions = (options: ThreadActionsOptions = {}) => {
   const invalidateThreadKeys = async (threadId?: string | null) => {
     const id = threadId ?? options.threadId
     if (shouldInvalidate('thread') && id) {
-      await queryClient.invalidateQueries({ queryKey: ['thread', id] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.thread.detail(id) })
     }
     if (shouldInvalidate('feed')) {
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.feed })
     }
     if (shouldInvalidate('search')) {
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.searchRoot })
     }
     if (shouldInvalidate('hiddenThreads')) {
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'hidden'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.hidden })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.hiddenSearchRoot })
     }
     if (shouldInvalidate('hiddenEntries')) {
-      await queryClient.invalidateQueries({ queryKey: ['entries', 'hidden'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.entries.hidden })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.entries.hiddenSearchRoot })
     }
   }
 

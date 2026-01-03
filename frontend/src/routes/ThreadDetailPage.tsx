@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   addEntry,
-  createCategory,
   fetchCategories,
   fetchThread,
 } from '../lib/api'
@@ -17,8 +16,10 @@ import { useThreadDetailState } from '../hooks/useThreadDetailState'
 import { buildEntryDepthMap } from '../lib/entryDepth'
 import { deriveTitleFromBody, getBodyWithoutTitle } from '../lib/threadText'
 import { isMutedText, stripMutedText, toggleMutedText } from '../lib/mutedText'
-import { CategoryInlineCreator } from '../components/CategoryInlineCreator'
 import { ThreadCardHeader } from '../components/home/ThreadCardHeader'
+import { ThreadEditor } from '../components/home/ThreadEditor'
+import { useCategoryMutations } from '../hooks/useCategoryMutations'
+import { queryKeys } from '../lib/queryKeys'
 
 export function ThreadDetailPage() {
   const { t } = useTranslation()
@@ -61,21 +62,19 @@ export function ThreadDetailPage() {
   })
 
   const threadQuery = useQuery({
-    queryKey: ['thread', id],
+    queryKey: queryKeys.thread.detail(id),
     queryFn: () => fetchThread(id ?? ''),
     enabled: Boolean(id),
   })
 
   const categoriesQuery = useQuery({
-    queryKey: ['categories'],
+    queryKey: queryKeys.categories,
     queryFn: fetchCategories,
     enabled: threadQuery.isSuccess,
   })
 
-  const createCategoryMutation = useMutation({
-    mutationFn: ({ name }: { name: string }) => createCategory(name),
-    onSuccess: async (created) => {
-      await queryClient.invalidateQueries({ queryKey: ['categories'] })
+  const { createCategoryMutation } = useCategoryMutations({
+    onCreateSuccess: (created) => {
       setEditingThreadCategories((prev) =>
         prev.includes(created.name) ? prev : [...prev, created.name],
       )
@@ -107,8 +106,8 @@ export function ThreadDetailPage() {
       } else {
         setEntryBody('')
       }
-      await queryClient.invalidateQueries({ queryKey: ['thread', id] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.thread.detail(id) })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.feed })
     },
   })
 
@@ -250,87 +249,43 @@ export function ThreadDetailPage() {
               })()}
             </div>
             {isEditingThread ? (
-              <form
-                className="mt-2 space-y-2 sm:mt-3"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  if (!editingThreadBody.trim()) {
-                    return
-                  }
+              <ThreadEditor
+                value={editingThreadBody}
+                onChange={setEditingThreadBody}
+                onSave={() =>
                   updateThreadMutation.mutate({
                     threadId: threadQuery.data.id,
                     body: editingThreadBody,
                     categoryNames: editingThreadCategories,
                   })
+                }
+                onCancel={() => cancelEditThread(threadQuery.data)}
+                categories={categoriesQuery.data ?? []}
+                selectedCategories={editingThreadCategories}
+                editingCategoryInput={editingCategoryInput}
+                isAddingCategory={isAddingEditingCategory}
+                isCreateCategoryPending={createCategoryMutation.isPending}
+                isSaving={updateThreadMutation.isPending}
+                buttonTextClass="text-sm"
+                onToggleCategory={toggleEditingCategory}
+                onCategoryInputChange={setEditingCategoryInput}
+                onCategoryOpen={() => setIsAddingEditingCategory(true)}
+                onCategoryCancel={() => {
+                  setEditingCategoryInput('')
+                  setIsAddingEditingCategory(false)
                 }}
-              >
-                <textarea
-                  className="min-h-[96px] w-full resize-none overflow-y-hidden rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  value={editingThreadBody}
-                  onChange={(event) => setEditingThreadBody(event.target.value)}
-                  onInput={handleTextareaInput}
-                  data-autoresize="true"
-                  ref={(element) => resizeTextarea(element)}
-                />
-                <div className="mt-4 py-2">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {categoriesQuery.data
-                        ?.filter((category) => !editingThreadCategories.includes(category.name))
-                        .map((category) => {
-                          const isSelected = editingThreadCategories.includes(category.name)
-                          return (
-                            <button
-                              key={category.id}
-                              className={`rounded-full border px-3 py-1 text-xs ${
-                                isSelected
-                                  ? 'border-gray-900 bg-gray-900 text-white'
-                                  : 'border-gray-300 text-gray-700'
-                              }`}
-                              type="button"
-                              onClick={() => toggleEditingCategory(category.name)}
-                            >
-                              {category.name}
-                            </button>
-                          )
-                        })}
-                      <div className="flex items-center">
-                        <CategoryInlineCreator
-                          isOpen={isAddingEditingCategory}
-                          value={editingCategoryInput}
-                          placeholder={t('home.categoryPlaceholder')}
-                          addLabel={t('home.addCategory')}
-                          cancelLabel={t('home.cancel')}
-                          disabled={createCategoryMutation.isPending}
-                          onOpen={() => setIsAddingEditingCategory(true)}
-                          onValueChange={setEditingCategoryInput}
-                          onSubmit={submitCategory}
-                          onCancel={() => {
-                            setEditingCategoryInput('')
-                            setIsAddingEditingCategory(false)
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    className="rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white"
-                    type="submit"
-                    disabled={updateThreadMutation.isPending}
-                  >
-                    {updateThreadMutation.isPending ? t('home.loading') : t('home.save')}
-                  </button>
-                  <button
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700"
-                    type="button"
-                    onClick={() => cancelEditThread(threadQuery.data)}
-                  >
-                    {t('home.cancel')}
-                  </button>
-                </div>
-              </form>
+                onCategorySubmit={submitCategory}
+                labels={{
+                  save: t('home.save'),
+                  saving: t('home.loading'),
+                  cancel: t('home.cancel'),
+                  categoryPlaceholder: t('home.categoryPlaceholder'),
+                  addCategory: t('home.addCategory'),
+                  cancelCategory: t('home.cancel'),
+                }}
+                handleTextareaInput={handleTextareaInput}
+                resizeTextarea={resizeTextarea}
+              />
             ) : (
               threadQuery.data.body &&
               (() => {

@@ -7,6 +7,7 @@ import { deriveTitleFromBody, getBodyWithoutTitle } from '../../lib/threadText'
 import { isMutedText, stripMutedText } from '../../lib/mutedText'
 import { EntryCard } from './EntryCard'
 import { ThreadCardHeader } from './ThreadCardHeader'
+import { ThreadEditor } from './ThreadEditor'
 
 type ThreadCardData = {
   thread: ThreadDetail
@@ -183,80 +184,32 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
         )}
       </div>
       {isEditing ? (
-        <form
-          className="mt-2 space-y-2 sm:mt-3"
-          onSubmit={(event) => {
-            event.preventDefault()
-            if (!editingThreadBody.trim()) {
-              return
-            }
-            onSaveEdit()
+        <ThreadEditor
+          value={editingThreadBody}
+          onChange={onEditingThreadBodyChange}
+          onSave={onSaveEdit}
+          onCancel={onCancelEdit}
+          categories={categories}
+          selectedCategories={editingThreadCategories}
+          editingCategoryInput={editingCategoryInput}
+          isAddingCategory={isAddingEditingCategory}
+          isCreateCategoryPending={isCreateCategoryPending}
+          isSaving={isUpdateThreadPending}
+          onToggleCategory={onEditingCategoryToggle}
+          onCategoryInputChange={onEditingCategoryInputChange}
+          onCategoryOpen={onEditingCategoryOpen}
+          onCategoryCancel={onEditingCategoryCancel}
+          onCategorySubmit={onEditingCategorySubmit}
+          labels={{
+            save: t('home.save'),
+            cancel: t('home.cancel'),
+            categoryPlaceholder: t('home.categoryPlaceholder'),
+            addCategory: t('home.addCategory'),
+            cancelCategory: t('home.cancel'),
           }}
-        >
-          <textarea
-            className="min-h-[96px] w-full resize-none overflow-y-hidden rounded-md border border-gray-300 px-3 py-2 text-sm"
-            value={editingThreadBody}
-            onChange={(event) => onEditingThreadBodyChange(event.target.value)}
-            onInput={handleTextareaInput}
-            data-autoresize="true"
-            ref={(element) => resizeTextarea(element)}
-          />
-          <div className="mt-4 py-2">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                {categories
-                  .filter((category) => !editingThreadCategories.includes(category.name))
-                  .map((category) => {
-                    const isSelected = editingThreadCategories.includes(category.name)
-                    return (
-                      <button
-                        key={category.id}
-                        className={`rounded-full border px-3 py-1 text-xs ${
-                          isSelected
-                            ? 'border-gray-900 bg-gray-900 text-white'
-                            : 'border-gray-300 text-gray-700'
-                        }`}
-                        type="button"
-                        onClick={() => onEditingCategoryToggle(category.name)}
-                      >
-                        {category.name}
-                      </button>
-                    )
-                  })}
-                <div className="flex items-center">
-                  <CategoryInlineCreator
-                    isOpen={isAddingEditingCategory}
-                    value={editingCategoryInput}
-                    placeholder={t('home.categoryPlaceholder')}
-                    addLabel={t('home.addCategory')}
-                    cancelLabel={t('home.cancel')}
-                    disabled={isCreateCategoryPending}
-                    onOpen={onEditingCategoryOpen}
-                    onValueChange={onEditingCategoryInputChange}
-                    onSubmit={onEditingCategorySubmit}
-                    onCancel={onEditingCategoryCancel}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
-              type="submit"
-              disabled={isUpdateThreadPending}
-            >
-              {t('home.save')}
-            </button>
-            <button
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-700"
-              type="button"
-              onClick={onCancelEdit}
-            >
-              {t('home.cancel')}
-            </button>
-          </div>
-        </form>
+          handleTextareaInput={handleTextareaInput}
+          resizeTextarea={resizeTextarea}
+        />
       ) : (
         thread.body &&
         (() => {

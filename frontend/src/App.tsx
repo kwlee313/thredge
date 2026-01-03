@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { AuthUser } from './lib/api'
 import { fetchMe, logout } from './lib/api'
+import { queryKeys } from './lib/queryKeys'
 
 export type AppOutletContext = {
   authQuery: UseQueryResult<AuthUser, Error>
@@ -14,7 +15,7 @@ export default function App() {
   const queryClient = useQueryClient()
 
   const authQuery = useQuery({
-    queryKey: ['auth', 'me'],
+    queryKey: queryKeys.auth.me,
     queryFn: fetchMe,
     retry: false,
   })
@@ -22,8 +23,8 @@ export default function App() {
   const logoutMutation = useMutation({
     mutationFn: logout,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.auth.me })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.feed })
     },
   })
 

@@ -3,9 +3,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   addEntry,
-  createCategory,
   createThread,
-  deleteCategory,
   fetchCategories,
   fetchThreadFeed,
   searchThreads,
@@ -22,6 +20,8 @@ import { useDateFilter } from '../../hooks/useDateFilter'
 import { useThreadActions } from '../../hooks/useThreadActions'
 import { THREAD_LIST_INVALIDATIONS } from '../../hooks/threadActionPresets'
 import { useHomeFeedState } from '../../hooks/useHomeFeedState'
+import { useCategoryMutations } from '../../hooks/useCategoryMutations'
+import { queryKeys } from '../../lib/queryKeys'
 
 type HomeFeedProps = {
   username: string
@@ -75,18 +75,18 @@ export function HomeFeed({ username }: HomeFeedProps) {
   } = useDateFilter(i18n.language)
 
   const threadsQuery = useQuery({
-    queryKey: ['threads', 'feed'],
+    queryKey: queryKeys.threads.feed,
     queryFn: fetchThreadFeed,
   })
 
   const searchThreadsQuery = useQuery({
-    queryKey: ['threads', 'search', normalizedSearchQuery],
+    queryKey: queryKeys.threads.search(normalizedSearchQuery),
     queryFn: () => searchThreads(normalizedSearchQuery),
     enabled: Boolean(normalizedSearchQuery),
   })
 
   const categoriesQuery = useQuery({
-    queryKey: ['categories'],
+    queryKey: queryKeys.categories,
     queryFn: fetchCategories,
   })
 
@@ -97,17 +97,15 @@ export function HomeFeed({ username }: HomeFeedProps) {
       threadActions.setNewThreadCategories([])
       threadActions.setNewCategoryInput('')
       threadActions.setIsAddingNewCategory(false)
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
-      await queryClient.invalidateQueries({ queryKey: ['categories'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.feed })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.searchRoot })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.categories })
     },
   })
 
-  const createCategoryMutation = useMutation({
-    mutationFn: ({ name }: { name: string; target?: 'new' | 'edit' }) => createCategory(name),
-    onSuccess: async (created, variables) => {
-      await queryClient.invalidateQueries({ queryKey: ['categories'] })
-      const target = variables.target ?? 'new'
+  const { createCategoryMutation } = useCategoryMutations({
+    onCreateSuccess: (created, variables) => {
+      const target = variables.target === 'edit' ? 'edit' : 'new'
       if (target === 'edit') {
         threadActions.setEditingThreadCategories((prev) =>
           prev.includes(created.name) ? prev : [...prev, created.name],
@@ -149,8 +147,8 @@ export function HomeFeed({ username }: HomeFeedProps) {
       } else {
         entryActions.updateEntryDraft(variables.threadId, '')
       }
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.feed })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.searchRoot })
     },
   })
 
@@ -172,7 +170,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
       threadActions.cancelEditThread()
     },
     onThreadHidden: (threadId) => {
-      queryClient.setQueryData(['threads', 'feed'], (data) => {
+      queryClient.setQueryData(queryKeys.threads.feed, (data) => {
         if (!Array.isArray(data)) {
           return data
         }
@@ -180,7 +178,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
       })
     },
     onThreadPinned: (updated) => {
-      queryClient.setQueryData(['threads', 'feed'], (data) => {
+      queryClient.setQueryData(queryKeys.threads.feed, (data) => {
         if (!Array.isArray(data)) {
           return data
         }
@@ -196,7 +194,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
       })
     },
     onThreadUnpinned: (updated) => {
-      queryClient.setQueryData(['threads', 'feed'], (data) => {
+      queryClient.setQueryData(queryKeys.threads.feed, (data) => {
         if (!Array.isArray(data)) {
           return data
         }
@@ -215,7 +213,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
       if (editingEntryId === entryId) {
         entryActions.cancelEntryEdit()
       }
-      queryClient.setQueryData(['threads', 'feed'], (data) => {
+      queryClient.setQueryData(queryKeys.threads.feed, (data) => {
         if (!Array.isArray(data)) {
           return data
         }
@@ -228,7 +226,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
       })
     },
     onEntryHidden: (entryId) => {
-      queryClient.setQueryData(['threads', 'feed'], (data) => {
+      queryClient.setQueryData(queryKeys.threads.feed, (data) => {
         if (!Array.isArray(data)) {
           return data
         }
@@ -240,13 +238,15 @@ export function HomeFeed({ username }: HomeFeedProps) {
     },
   })
 
-  const deleteCategoryMutation = useMutation({
-    mutationFn: ({ id }: { id: string; name: string }) => deleteCategory(id),
-    onSuccess: async (_, variables) => {
-      threadActions.setSelectedCategories((prev) => prev.filter((item) => item !== variables.name))
-      await queryClient.invalidateQueries({ queryKey: ['categories'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
+  const { deleteCategoryMutation } = useCategoryMutations({
+    invalidateThreadsFeed: true,
+    invalidateThreadsSearch: true,
+    onDeleteSuccess: (variables) => {
+      const removedName = variables.name as string
+      if (!removedName) {
+        return
+      }
+      threadActions.setSelectedCategories((prev) => prev.filter((item) => item !== removedName))
     },
   })
 

@@ -8,14 +8,9 @@ import {
   createCategory,
   fetchCategories,
   fetchThread,
-  hideEntry,
-  hideThread,
-  pinThread,
-  unpinThread,
-  updateEntry,
-  updateThread,
 } from '../lib/api'
 import { useTextareaAutosize } from '../hooks/useTextareaAutosize'
+import { useThreadActions } from '../hooks/useThreadActions'
 import { buildEntryDepthMap } from '../lib/entryDepth'
 import { deriveTitleFromBody, getBodyWithoutTitle } from '../lib/threadText'
 import { isMutedText, stripMutedText, toggleMutedText } from '../lib/mutedText'
@@ -95,82 +90,34 @@ export function ThreadDetailPage() {
     },
   })
 
-  const updateThreadMutation = useMutation({
-    mutationFn: ({
-      body,
-      categoryNames,
-    }: {
-      body: string
-      categoryNames: string[]
-    }) => updateThread(id ?? '', body, categoryNames),
-    onSuccess: async () => {
+  const {
+    updateThreadMutation,
+    toggleThreadMuteMutation,
+    hideThreadMutation,
+    pinThreadMutation,
+    unpinThreadMutation,
+    updateEntryMutation,
+    toggleEntryMuteMutation,
+    hideEntryMutation,
+  } = useThreadActions({
+    threadId: id ?? undefined,
+    invalidate: { feed: true, thread: true, hiddenThreads: true, hiddenEntries: true },
+    onThreadUpdated: (_threadId) => {
+      if (!isEditingThread) {
+        return
+      }
       setIsEditingThread(false)
       setEditingCategoryInput('')
       setIsAddingEditingCategory(false)
-      await queryClient.invalidateQueries({ queryKey: ['thread', id] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
     },
-  })
-
-  const toggleThreadMuteMutation = useMutation({
-    mutationFn: ({
-      body,
-      categoryNames,
-    }: {
-      body: string
-      categoryNames: string[]
-    }) => updateThread(id ?? '', body, categoryNames),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['thread', id] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
-    },
-  })
-
-  const hideThreadMutation = useMutation({
-    mutationFn: () => hideThread(id ?? ''),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
+    onThreadHidden: () => {
       navigate('/')
     },
-  })
-
-  const pinThreadMutation = useMutation({
-    mutationFn: (threadId: string) => pinThread(threadId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['thread', id] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
-    },
-  })
-
-  const unpinThreadMutation = useMutation({
-    mutationFn: (threadId: string) => unpinThread(threadId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['thread', id] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
-    },
-  })
-
-  const updateEntryMutation = useMutation({
-    mutationFn: () => updateEntry(editingEntryId ?? '', editingEntryBody),
-    onSuccess: async () => {
-      setEditingEntryId(null)
-      setEditingEntryBody('')
-      await queryClient.invalidateQueries({ queryKey: ['thread', id] })
-    },
-  })
-
-  const toggleEntryMuteMutation = useMutation({
-    mutationFn: ({ entryId, body }: { entryId: string; body: string }) => updateEntry(entryId, body),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['thread', id] })
-    },
-  })
-
-  const hideEntryMutation = useMutation({
-    mutationFn: (entryId: string) => hideEntry(entryId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['thread', id] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
+    onEntryUpdated: (entryId, _body) => {
+      if (editingEntryId === entryId) {
+        setEditingEntryId(null)
+        setEditingEntryBody('')
+      }
     },
   })
 
@@ -304,6 +251,7 @@ export function ThreadDetailPage() {
                       return
                     }
                     toggleThreadMuteMutation.mutate({
+                      threadId: threadQuery.data.id,
                       body: toggleMutedText(threadQuery.data.body),
                       categoryNames: threadQuery.data.categories.map((item) => item.name),
                     })
@@ -315,7 +263,7 @@ export function ThreadDetailPage() {
                 <button
                   className="rounded-full border border-gray-200 px-1 py-0 text-[9px] text-gray-400"
                   type="button"
-                  onClick={() => hideThreadMutation.mutate()}
+                  onClick={() => hideThreadMutation.mutate(threadQuery.data.id)}
                   disabled={hideThreadMutation.isPending}
                   aria-label={t('home.archive')}
                 >
@@ -352,6 +300,7 @@ export function ThreadDetailPage() {
                     return
                   }
                   updateThreadMutation.mutate({
+                    threadId: threadQuery.data.id,
                     body: editingThreadBody,
                     categoryNames: editingThreadCategories,
                   })
@@ -515,7 +464,10 @@ export function ThreadDetailPage() {
                           if (!editingEntryBody.trim()) {
                             return
                           }
-                          updateEntryMutation.mutate()
+                          updateEntryMutation.mutate({
+                            entryId: entry.id,
+                            body: editingEntryBody,
+                          })
                         }}
                       >
                         <textarea

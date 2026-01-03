@@ -1,7 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import type { UseQueryResult } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import type { AuthUser } from './lib/api'
 import { fetchMe, logout } from './lib/api'
+
+export type AppOutletContext = {
+  authQuery: UseQueryResult<AuthUser, Error>
+}
 
 export default function App() {
   const { t } = useTranslation()
@@ -69,7 +75,7 @@ export default function App() {
       </header>
 
       <main className="w-full pl-2 pr-1 py-4 sm:mx-auto sm:max-w-3xl sm:px-4 sm:py-6">
-        <Outlet />
+        <Outlet context={{ authQuery }} />
       </main>
     </div>
   )

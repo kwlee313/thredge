@@ -1,19 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { fetchMe, login } from '../lib/api'
+import { useOutletContext } from 'react-router-dom'
+import { login } from '../lib/api'
 import { HomeFeed } from '../components/home/HomeFeed'
+import type { AppOutletContext } from '../App'
 
 export function HomePage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [username, setUsername] = useState('user')
   const [password, setPassword] = useState('user')
-  const authQuery = useQuery({
-    queryKey: ['auth', 'me'],
-    queryFn: fetchMe,
-    retry: false,
-  })
+  const { authQuery } = useOutletContext<AppOutletContext>()
 
   const loginMutation = useMutation({
     mutationFn: () => login(username, password),

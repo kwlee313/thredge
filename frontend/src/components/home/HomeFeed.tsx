@@ -1,7 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { formatDistanceToNow } from 'date-fns'
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   addEntry,
@@ -10,24 +8,18 @@ import {
   deleteCategory,
   fetchCategories,
   fetchThreadFeed,
-  hideEntry,
-  hideThread,
-  pinThread,
   searchThreads,
-  unpinThread,
-  updateEntry,
-  updateThread,
 } from '../../lib/api'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
 import { useTextareaAutosize } from '../../hooks/useTextareaAutosize'
-import { highlightMatches } from '../../lib/highlightMatches'
 import { buildEntryDepthMap } from '../../lib/entryDepth'
-import { deriveTitleFromBody, getBodyWithoutTitle } from '../../lib/threadText'
-import { isMutedText, stripMutedText, toggleMutedText } from '../../lib/mutedText'
+import { toggleMutedText } from '../../lib/mutedText'
 import { CategoryInlineCreator } from '../CategoryInlineCreator'
-import pinIcon from '../../assets/pin.svg'
-import pinFilledIcon from '../../assets/pin-filled.svg'
-import eraserIcon from '../../assets/eraser.svg'
+import { CategoryFilterBar } from './CategoryFilterBar'
+import { DateFilter } from './DateFilter'
+import { ThreadCard } from './ThreadCard'
+import { useDateFilter } from '../../hooks/useDateFilter'
+import { useThreadActions } from '../../hooks/useThreadActions'
 
 type HomeFeedProps = {
   username: string
@@ -53,7 +45,6 @@ export function HomeFeed({ username }: HomeFeedProps) {
   const [isAddingEditingCategory, setIsAddingEditingCategory] = useState(false)
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [editingEntryBody, setEditingEntryBody] = useState('')
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeComposerTab, setActiveComposerTab] = useState<'new' | 'search'>('new')
 
@@ -62,38 +53,15 @@ export function HomeFeed({ username }: HomeFeedProps) {
     deps: [threadBody, editingThreadBody, editingEntryBody, entryDrafts, replyDrafts],
   })
 
-  const formatDateLabel = (date: Date) =>
-    new Intl.DateTimeFormat(i18n.language, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }).format(date)
-
-  const formatDateInput = (date: Date) => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
-
-  const parseDateInput = (value: string) => {
-    if (!value) {
-      return null
-    }
-    const [year, month, day] = value.split('-').map(Number)
-    if (!year || !month || !day) {
-      return null
-    }
-    return new Date(year, month - 1, day)
-  }
-
-  const shiftDateByDays = (date: Date, amount: number) =>
-    new Date(date.getFullYear(), date.getMonth(), date.getDate() + amount)
-
-  const isSameCalendarDate = (left: Date, right: Date) =>
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
+  const {
+    selectedDate,
+    setSelectedDate,
+    selectedDateLabel,
+    dateInputValue,
+    parseDateInput,
+    shiftDateByDays,
+    isSameCalendarDate,
+  } = useDateFilter(i18n.language)
 
   const threadsQuery = useQuery({
     queryKey: ['threads', 'feed'],
@@ -175,127 +143,41 @@ export function HomeFeed({ username }: HomeFeedProps) {
     },
   })
 
-  const updateThreadMutation = useMutation({
-    mutationFn: ({
-      threadId,
-      body,
-      categoryNames,
-    }: {
-      threadId: string
-      body: string
-      categoryNames: string[]
-    }) => updateThread(threadId, body, categoryNames),
-    onSuccess: async () => {
+  const {
+    updateThreadMutation,
+    toggleThreadMuteMutation,
+    hideThreadMutation,
+    pinThreadMutation,
+    unpinThreadMutation,
+    updateEntryMutation,
+    toggleEntryMuteMutation,
+    hideEntryMutation,
+  } = useThreadActions({
+    invalidate: {
+      feed: true,
+      search: true,
+      hiddenThreads: true,
+      hiddenEntries: true,
+    },
+    onThreadUpdated: (threadId) => {
+      if (editingThreadId !== threadId) {
+        return
+      }
       setEditingThreadId(null)
       setEditingThreadBody('')
       setEditingThreadCategories([])
       setEditingCategoryInput('')
       setIsAddingEditingCategory(false)
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
     },
-  })
-
-  const toggleThreadMuteMutation = useMutation({
-    mutationFn: ({
-      threadId,
-      body,
-      categoryNames,
-    }: {
-      threadId: string
-      body: string
-      categoryNames: string[]
-    }) => updateThread(threadId, body, categoryNames),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
-    },
-  })
-
-  const updateEntryMutation = useMutation({
-    mutationFn: ({ entryId, body }: { entryId: string; body: string }) =>
-      updateEntry(entryId, body),
-    onSuccess: async (_, variables) => {
-      setEditingEntryId(null)
-      setEditingEntryBody('')
-      queryClient.setQueryData(['threads', 'feed'], (data) => {
-        if (!Array.isArray(data)) {
-          return data
-        }
-        return data.map((thread) => ({
-          ...thread,
-          entries: thread.entries.map((entry) =>
-            entry.id === variables.entryId ? { ...entry, body: variables.body } : entry,
-          ),
-        }))
-      })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
-    },
-  })
-
-  const toggleEntryMuteMutation = useMutation({
-    mutationFn: ({ entryId, body }: { entryId: string; body: string }) =>
-      updateEntry(entryId, body),
-    onSuccess: async (_, variables) => {
-      queryClient.setQueryData(['threads', 'feed'], (data) => {
-        if (!Array.isArray(data)) {
-          return data
-        }
-        return data.map((thread) => ({
-          ...thread,
-          entries: thread.entries.map((entry) =>
-            entry.id === variables.entryId ? { ...entry, body: variables.body } : entry,
-          ),
-        }))
-      })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
-    },
-  })
-
-  const deleteCategoryMutation = useMutation({
-    mutationFn: ({ id }: { id: string; name: string }) => deleteCategory(id),
-    onSuccess: async (_, variables) => {
-      setSelectedCategories((prev) => prev.filter((item) => item !== variables.name))
-      await queryClient.invalidateQueries({ queryKey: ['categories'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
-    },
-  })
-
-  const hideThreadMutation = useMutation({
-    mutationFn: (threadId: string) => hideThread(threadId),
-    onSuccess: async (_, threadId) => {
+    onThreadHidden: (threadId) => {
       queryClient.setQueryData(['threads', 'feed'], (data) => {
         if (!Array.isArray(data)) {
           return data
         }
         return data.filter((thread) => thread.id !== threadId)
       })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'hidden'] })
     },
-  })
-
-  const hideEntryMutation = useMutation({
-    mutationFn: (entryId: string) => hideEntry(entryId),
-    onSuccess: async (_, entryId) => {
-      queryClient.setQueryData(['threads', 'feed'], (data) => {
-        if (!Array.isArray(data)) {
-          return data
-        }
-        return data.map((thread) => ({
-          ...thread,
-          entries: thread.entries.filter((entry) => entry.id !== entryId),
-        }))
-      })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
-      await queryClient.invalidateQueries({ queryKey: ['entries', 'hidden'] })
-    },
-  })
-
-  const pinThreadMutation = useMutation({
-    mutationFn: (threadId: string) => pinThread(threadId),
-    onSuccess: async (updated) => {
+    onThreadPinned: (updated) => {
       queryClient.setQueryData(['threads', 'feed'], (data) => {
         if (!Array.isArray(data)) {
           return data
@@ -310,14 +192,8 @@ export function HomeFeed({ username }: HomeFeedProps) {
           return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()
         })
       })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'hidden'] })
     },
-  })
-
-  const unpinThreadMutation = useMutation({
-    mutationFn: (threadId: string) => unpinThread(threadId),
-    onSuccess: async (updated) => {
+    onThreadUnpinned: (updated) => {
       queryClient.setQueryData(['threads', 'feed'], (data) => {
         if (!Array.isArray(data)) {
           return data
@@ -332,10 +208,47 @@ export function HomeFeed({ username }: HomeFeedProps) {
           return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()
         })
       })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
-      await queryClient.invalidateQueries({ queryKey: ['threads', 'hidden'] })
+    },
+    onEntryUpdated: (entryId, body) => {
+      if (editingEntryId === entryId) {
+        setEditingEntryId(null)
+        setEditingEntryBody('')
+      }
+      queryClient.setQueryData(['threads', 'feed'], (data) => {
+        if (!Array.isArray(data)) {
+          return data
+        }
+        return data.map((thread) => ({
+          ...thread,
+          entries: thread.entries.map((entry) =>
+            entry.id === entryId ? { ...entry, body } : entry,
+          ),
+        }))
+      })
+    },
+    onEntryHidden: (entryId) => {
+      queryClient.setQueryData(['threads', 'feed'], (data) => {
+        if (!Array.isArray(data)) {
+          return data
+        }
+        return data.map((thread) => ({
+          ...thread,
+          entries: thread.entries.filter((entry) => entry.id !== entryId),
+        }))
+      })
     },
   })
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: ({ id }: { id: string; name: string }) => deleteCategory(id),
+    onSuccess: async (_, variables) => {
+      setSelectedCategories((prev) => prev.filter((item) => item !== variables.name))
+      await queryClient.invalidateQueries({ queryKey: ['categories'] })
+      await queryClient.invalidateQueries({ queryKey: ['threads', 'feed'] })
+      await queryClient.invalidateQueries({ queryKey: ['threads', 'search'] })
+    },
+  })
+
 
   const filteredThreads = useMemo(() => {
     const data = normalizedSearchQuery ? searchThreadsQuery.data ?? [] : threadsQuery.data ?? []
@@ -390,8 +303,6 @@ export function HomeFeed({ username }: HomeFeedProps) {
       total: buildCategoryCounts(totalData),
     }
   }, [threadsQuery.data, searchThreadsQuery.data, selectedDate, normalizedSearchQuery])
-
-  const selectedDateLabel = selectedDate ? formatDateLabel(selectedDate) : null
 
   return (
     <div className="space-y-4 sm:space-y-8">
@@ -542,132 +453,71 @@ export function HomeFeed({ username }: HomeFeedProps) {
                 ? t('home.threadsTitleForDate', { date: selectedDateLabel })
                 : t('home.threadsTitle')}
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
-            <button
-              className="rounded-full border border-gray-300 px-2 py-1 text-[11px] font-semibold text-gray-700 transition-all"
-              type="button"
-              onClick={() => setSelectedDate(null)}
-              disabled={!selectedDate}
-            >
-              {t('home.allDates')}
-            </button>
-            <div className="flex items-center gap-1">
-              <button
-                className="flex items-center justify-center px-2 py-1 text-xs font-semibold text-gray-600 transition-all hover:text-gray-900"
-                type="button"
-                onClick={() => {
-                  const base = selectedDate ?? new Date()
-                  setSelectedDate(shiftDateByDays(base, -1))
-                }}
-                aria-label={t('home.prevDay')}
-              >
-                {'<'}
-              </button>
-              <input
-                className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700"
-                type="date"
-                value={selectedDate ? formatDateInput(selectedDate) : ''}
-                onChange={(event) => {
-                  setSelectedDate(parseDateInput(event.target.value))
-                }}
-                aria-label={t('home.dateInputLabel')}
-              />
-              <button
-                className="flex items-center justify-center px-2 py-1 text-xs font-semibold text-gray-600 transition-all hover:text-gray-900"
-                type="button"
-                onClick={() => {
-                  const base = selectedDate ?? new Date()
-                  setSelectedDate(shiftDateByDays(base, 1))
-                }}
-                aria-label={t('home.nextDay')}
-              >
-                {'>'}
-              </button>
-            </div>
-          </div>
+          <DateFilter
+            selectedDate={selectedDate}
+            dateInputValue={dateInputValue}
+            labels={{
+              allDates: t('home.allDates'),
+              prevDay: t('home.prevDay'),
+              nextDay: t('home.nextDay'),
+              dateInputLabel: t('home.dateInputLabel'),
+            }}
+            onClear={() => setSelectedDate(null)}
+            onPrev={() => {
+              const base = selectedDate ?? new Date()
+              setSelectedDate(shiftDateByDays(base, -1))
+            }}
+            onNext={() => {
+              const base = selectedDate ?? new Date()
+              setSelectedDate(shiftDateByDays(base, 1))
+            }}
+            onInputChange={(value) => setSelectedDate(parseDateInput(value))}
+          />
         </div>
         <div className="mt-2 space-y-8 sm:mt-4 sm:space-y-8">
-          <div className="rounded-md border border-gray-200 px-1.5 py-1 sm:px-3 sm:py-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              {t('home.categories')}
-            </div>
-            <div className="mt-1 flex flex-wrap gap-2 sm:mt-2">
-              <button
-                className={`rounded-full border px-3 py-1 text-xs ${
-                  selectedCategories.includes(UNCATEGORIZED_TOKEN)
-                    ? 'border-gray-900 bg-gray-900 text-white'
-                    : 'border-gray-300 text-gray-700'
-                }`}
-                type="button"
-                onClick={() => {
-                  setSelectedCategories((prev) =>
-                    prev.includes(UNCATEGORIZED_TOKEN)
-                      ? prev.filter((item) => item !== UNCATEGORIZED_TOKEN)
-                      : [...prev, UNCATEGORIZED_TOKEN],
-                  )
-                }}
-              >
-                {t('home.uncategorized')}{' '}
-                <span className="text-[10px] text-gray-500">
-                  ({categoryCounts.display.uncategorizedCount})
-                </span>
-              </button>
-              {categoriesQuery.data?.map((category) => {
-                const isSelected = selectedCategories.includes(category.name)
+          <CategoryFilterBar
+            categories={
+              categoriesQuery.data?.map((category) => {
                 const count = categoryCounts.display.counts.get(category.name) ?? 0
                 const totalCount = categoryCounts.total.counts.get(category.name) ?? 0
-                const canDelete = threadsQuery.isSuccess && totalCount === 0
-                return (
-                  <div key={category.id} className="relative flex items-center">
-                    <button
-                      className={`rounded-full border px-3 py-1 text-xs ${
-                        isSelected
-                          ? 'border-gray-900 bg-gray-900 text-white'
-                          : 'border-gray-300 text-gray-700'
-                      }`}
-                      type="button"
-                      onClick={() => {
-                        setSelectedCategories((prev) =>
-                          isSelected
-                            ? prev.filter((item) => item !== category.name)
-                            : [...prev, category.name],
-                        )
-                      }}
-                    >
-                      {category.name}{' '}
-                      <span className="text-[10px] text-gray-500">({count})</span>
-                    </button>
-                    {canDelete && (
-                      <button
-                        className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-gray-200 bg-white text-[10px] text-gray-500 hover:text-gray-900"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          const shouldDelete = window.confirm(
-                            t('home.deleteCategoryConfirm', { name: category.name }),
-                          )
-                          if (!shouldDelete) {
-                            return
-                          }
-                          deleteCategoryMutation.mutate({
-                            id: category.id,
-                            name: category.name,
-                          })
-                        }}
-                        disabled={deleteCategoryMutation.isPending}
-                        aria-label={t('home.deleteCategory')}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
-              {categoriesQuery.data?.length === 0 && (
-                <div className="text-xs text-gray-500">{t('home.noCategories')}</div>
-              )}
-            </div>
-          </div>
+                return {
+                  id: category.id,
+                  name: category.name,
+                  count,
+                  totalCount,
+                  canDelete: threadsQuery.isSuccess && totalCount === 0,
+                }
+              }) ?? []
+            }
+            selectedCategories={selectedCategories}
+            uncategorizedCount={categoryCounts.display.uncategorizedCount}
+            uncategorizedToken={UNCATEGORIZED_TOKEN}
+            labels={{
+              title: t('home.categories'),
+              uncategorized: t('home.uncategorized'),
+              noCategories: t('home.noCategories'),
+              deleteCategory: t('home.deleteCategory'),
+            }}
+            onToggleUncategorized={() => {
+              setSelectedCategories((prev) =>
+                prev.includes(UNCATEGORIZED_TOKEN)
+                  ? prev.filter((item) => item !== UNCATEGORIZED_TOKEN)
+                  : [...prev, UNCATEGORIZED_TOKEN],
+              )
+            }}
+            onToggleCategory={(name) => {
+              setSelectedCategories((prev) =>
+                prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name],
+              )
+            }}
+            onDeleteCategory={(id, name) => {
+              const shouldDelete = window.confirm(t('home.deleteCategoryConfirm', { name }))
+              if (!shouldDelete) {
+                return
+              }
+              deleteCategoryMutation.mutate({ id, name })
+            }}
+          />
           {(normalizedSearchQuery ? searchThreadsQuery : threadsQuery).isLoading && (
             <div className="text-sm text-gray-600">{t('home.loading')}</div>
           )}
@@ -690,473 +540,158 @@ export function HomeFeed({ username }: HomeFeedProps) {
               },
             ][index % 3]
             const entryDepth = buildEntryDepthMap(thread.entries)
-            const isThreadBodyMuted = isMutedText(thread.body)
-            const rawBody =
-              thread.body ? (isThreadBodyMuted ? stripMutedText(thread.body) : thread.body) : null
-            const displayTitle = rawBody ? deriveTitleFromBody(rawBody) : thread.title
             const isEditing = editingThreadId === thread.id
 
             return (
-              <div
+              <ThreadCard
                 key={thread.id}
-                className={`relative rounded-xl border pl-2 pr-1 pt-8 pb-1 shadow-sm sm:px-6 sm:py-5 ${theme.card}`}
-              >
-                <div className="pointer-events-none absolute left-0 top-0 h-0.5 w-full rounded-t-xl bg-gray-100" />
-                <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <button
-                      className={`flex h-5 w-5 items-center justify-center rounded-full border ${
-                        thread.pinned
-                          ? 'border-gray-900 text-gray-900'
-                          : 'border-gray-200 text-gray-400'
-                      }`}
-                      type="button"
-                      onClick={() => {
-                        if (thread.pinned) {
-                          unpinThreadMutation.mutate(thread.id)
-                        } else {
-                          pinThreadMutation.mutate(thread.id)
-                        }
-                      }}
-                      disabled={pinThreadMutation.isPending || unpinThreadMutation.isPending}
-                      aria-label={thread.pinned ? t('home.unpin') : t('home.pin')}
-                    >
-                      <img
-                        className="h-3.5 w-3.5"
-                        src={thread.pinned ? pinFilledIcon : pinIcon}
-                        alt=""
-                      />
-                    </button>
-                    {isEditing
-                      ? editingThreadCategories.map((categoryName) => (
-                          <button
-                            key={categoryName}
-                            className="inline-flex rounded-full border border-gray-900 bg-gray-900 px-2 py-0.5 text-xs font-normal text-white"
-                            type="button"
-                            onClick={() => {
-                              setEditingThreadCategories((prev) =>
-                                prev.filter((item) => item !== categoryName),
-                              )
-                            }}
-                          >
-                            {categoryName}
-                          </button>
-                        ))
-                      : thread.categories.map((category) => (
-                          <span
-                            key={category.id}
-                            className="inline-flex rounded-full border border-gray-200 px-2 py-0.5 text-xs font-normal text-gray-600"
-                          >
-                            {category.name}
-                          </span>
-                        ))}
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      className="flex h-5 w-5 items-center justify-center rounded-full border border-gray-200 text-gray-500"
-                      type="button"
-                      onClick={() => {
-                        setEditingThreadId(thread.id)
-                        setEditingThreadBody(thread.body ?? '')
-                        setEditingThreadCategories(thread.categories.map((item) => item.name))
-                        setEditingCategoryInput('')
-                        setIsAddingEditingCategory(false)
-                      }}
-                      aria-label={t('home.edit')}
-                    >
-                      <img className="h-3.5 w-3.5" src={eraserIcon} alt="" />
-                    </button>
-                    <button
-                      className={`rounded-full border px-1 py-0 text-[9px] ${
-                        isMutedText(thread.body)
-                          ? 'border-gray-900 bg-gray-900 text-white'
-                          : 'border-gray-200 text-gray-400'
-                      }`}
-                      type="button"
-                      onClick={() => {
-                        if (!thread.body) {
-                          return
-                        }
-                        toggleThreadMuteMutation.mutate({
-                          threadId: thread.id,
-                          body: toggleMutedText(thread.body),
-                          categoryNames: thread.categories.map((item) => item.name),
-                        })
-                      }}
-                      aria-label="Toggle strikethrough"
-                    >
-                      -
-                    </button>
-                    <button
-                      className="rounded-full border border-gray-200 px-1 py-0 text-[9px] text-gray-400"
-                      type="button"
-                      onClick={() => hideThreadMutation.mutate(thread.id)}
-                      disabled={hideThreadMutation.isPending}
-                      aria-label={t('home.archive')}
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-6 pl-3 text-sm font-semibold">
-                  {isEditing ? (
-                    <span
-                      className={isThreadBodyMuted ? 'text-gray-400 line-through' : 'text-gray-900'}
-                    >
-                      {highlightMatches(displayTitle, normalizedSearchQuery)}
-                    </span>
-                  ) : (
-                    <Link
-                      className={`hover:underline ${
-                        isThreadBodyMuted ? 'text-gray-400 line-through' : 'text-gray-900'
-                      }`}
-                      to={`/threads/${thread.id}`}
-                    >
-                      {highlightMatches(displayTitle, normalizedSearchQuery)}
-                    </Link>
-                  )}
-                </div>
-                {isEditing ? (
-                  <form
-                    className="mt-2 space-y-2 sm:mt-3"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      if (!editingThreadBody.trim()) {
-                        return
-                      }
-                      updateThreadMutation.mutate({
-                        threadId: thread.id,
-                        body: editingThreadBody,
-                        categoryNames: editingThreadCategories,
-                      })
-                    }}
-                  >
-                    <textarea
-                      className="min-h-[96px] w-full resize-none overflow-y-hidden rounded-md border border-gray-300 px-3 py-2 text-sm"
-                      value={editingThreadBody}
-                      onChange={(event) => setEditingThreadBody(event.target.value)}
-                      onInput={handleTextareaInput}
-                      data-autoresize="true"
-                      ref={(element) => resizeTextarea(element)}
-                    />
-                    <div className="mt-4 py-2">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {categoriesQuery.data
-                            ?.filter((category) => !editingThreadCategories.includes(category.name))
-                            .map((category) => {
-                              const isSelected = editingThreadCategories.includes(category.name)
-                              return (
-                                <button
-                                  key={category.id}
-                                  className={`rounded-full border px-3 py-1 text-xs ${
-                                    isSelected
-                                      ? 'border-gray-900 bg-gray-900 text-white'
-                                      : 'border-gray-300 text-gray-700'
-                                  }`}
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingThreadCategories((prev) =>
-                                      isSelected
-                                        ? prev.filter((item) => item !== category.name)
-                                        : [...prev, category.name],
-                                    )
-                                  }}
-                                >
-                                  {category.name}
-                                </button>
-                              )
-                            })}
-                          <div className="flex items-center">
-                            <CategoryInlineCreator
-                              isOpen={isAddingEditingCategory}
-                              value={editingCategoryInput}
-                              placeholder={t('home.categoryPlaceholder')}
-                              addLabel={t('home.addCategory')}
-                              cancelLabel={t('home.cancel')}
-                              disabled={createCategoryMutation.isPending}
-                              onOpen={() => setIsAddingEditingCategory(true)}
-                              onValueChange={setEditingCategoryInput}
-                              onSubmit={() => submitCategory('edit')}
-                              onCancel={() => {
-                                setEditingCategoryInput('')
-                                setIsAddingEditingCategory(false)
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
-                        type="submit"
-                        disabled={updateThreadMutation.isPending}
-                      >
-                        {t('home.save')}
-                      </button>
-                      <button
-                        className="rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-700"
-                        type="button"
-                        onClick={() => {
-                          setEditingThreadId(null)
-                          setEditingThreadBody('')
-                          setEditingThreadCategories([])
-                          setEditingCategoryInput('')
-                          setIsAddingEditingCategory(false)
-                        }}
-                      >
-                        {t('home.cancel')}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  thread.body &&
-                  (() => {
-                    const isBodyMuted = isThreadBodyMuted
-                    const normalizedBody =
-                      thread.body && isBodyMuted ? stripMutedText(thread.body) : thread.body
-                    const body =
-                      normalizedBody && displayTitle
-                        ? getBodyWithoutTitle(displayTitle, normalizedBody)
-                        : ''
-                    return body ? (
-                      <p
-                        className={`mt-2 whitespace-pre-wrap text-sm ${
-                          isBodyMuted ? 'text-gray-400 line-through' : 'text-gray-700'
-                        }`}
-                      >
-                        {highlightMatches(body, normalizedSearchQuery)}
-                      </p>
-                    ) : null
-                  })()
-                )}
-                <div className="mt-2 space-y-2 sm:mt-6">
-                  {thread.entries.map((entry) => {
-                    const depth = entryDepth.get(entry.id) ?? 1
-                    const indentClass = depth === 2 ? 'ml-6' : depth >= 3 ? 'ml-12' : ''
-                    return (
-                      <div
-                        key={entry.id}
-                        className={`relative rounded-lg border px-1.5 py-1 shadow-sm sm:px-3 sm:py-2 ${theme.entry} ${indentClass}`}
-                      >
-                        <div className="absolute right-2 top-2 flex items-center gap-1">
-                          <button
-                            className="flex h-5 w-5 items-center justify-center rounded-full border border-gray-200 text-gray-500"
-                            type="button"
-                            onClick={() => {
-                              setEditingEntryId(entry.id)
-                              setEditingEntryBody(entry.body)
-                            }}
-                            aria-label={t('home.edit')}
-                          >
-                            <img className="h-3.5 w-3.5" src={eraserIcon} alt="" />
-                          </button>
-                          <button
-                            className={`rounded-full border px-1 py-0 text-[8px] ${
-                              isMutedText(entry.body)
-                                ? 'border-gray-900 bg-gray-900 text-white'
-                                : 'border-gray-200 text-gray-400'
-                            }`}
-                            type="button"
-                            onClick={() => {
-                              if (!entry.body) {
-                                return
-                              }
-                              toggleEntryMuteMutation.mutate({
-                                entryId: entry.id,
-                                body: toggleMutedText(entry.body),
-                              })
-                            }}
-                            aria-label="Toggle strikethrough"
-                          >
-                            -
-                          </button>
-                          <button
-                            className="rounded-full border border-gray-200 px-1 py-0 text-[8px] text-gray-400"
-                            type="button"
-                            onClick={() => hideEntryMutation.mutate(entry.id)}
-                            disabled={hideEntryMutation.isPending}
-                            aria-label={t('home.archive')}
-                          >
-                            ×
-                          </button>
-                        </div>
-                        {editingEntryId === entry.id ? (
-                          <form
-                            className="space-y-2"
-                            onSubmit={(event) => {
-                              event.preventDefault()
-                              if (!editingEntryBody.trim()) {
-                                return
-                              }
-                              updateEntryMutation.mutate({
-                                entryId: entry.id,
-                                body: editingEntryBody,
-                              })
-                            }}
-                          >
-                            <textarea
-                              className="min-h-[72px] w-full resize-none overflow-y-hidden rounded-md border border-gray-300 px-3 py-2 text-sm"
-                              value={editingEntryBody}
-                              onChange={(event) => setEditingEntryBody(event.target.value)}
-                              onInput={handleTextareaInput}
-                              data-autoresize="true"
-                              ref={(element) => resizeTextarea(element)}
-                            />
-                            <div className="flex items-center gap-2">
-                              <button
-                                className="rounded-md bg-gray-900 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white"
-                                type="submit"
-                                disabled={updateEntryMutation.isPending}
-                              >
-                                {t('home.save')}
-                              </button>
-                              <button
-                                className="rounded-md border border-gray-300 px-2 py-1 text-[10px] text-gray-700"
-                                type="button"
-                                onClick={() => {
-                                  setEditingEntryId(null)
-                                  setEditingEntryBody('')
-                                }}
-                              >
-                                {t('home.cancel')}
-                              </button>
-                            </div>
-                          </form>
-                        ) : (
-                          <>
-                            <div
-                              className={`text-sm ${
-                                isMutedText(entry.body)
-                                  ? 'text-gray-400 line-through'
-                                  : 'text-gray-800'
-                              }`}
-                            >
-                              {highlightMatches(
-                                isMutedText(entry.body) ? stripMutedText(entry.body) : entry.body,
-                                normalizedSearchQuery,
-                              )}
-                            </div>
-                            <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
-                              <span>
-                                {formatDistanceToNow(new Date(entry.createdAt), {
-                                  addSuffix: true,
-                                })}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                {depth < 3 && (
-                                  <button
-                                    className="rounded-md border border-gray-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700"
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveReplyId(entry.id)
-                                      setReplyDrafts((prev) => ({
-                                        ...prev,
-                                        [entry.id]: prev[entry.id] ?? '',
-                                      }))
-                                    }}
-                                  >
-                                    {t('home.reply')}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                        {activeReplyId === entry.id && depth < 3 && (
-                          <form
-                            className="mt-1 space-y-2 sm:mt-2"
-                            onSubmit={(event) => {
-                              event.preventDefault()
-                              const body = replyDrafts[entry.id]?.trim()
-                              if (!body) {
-                                return
-                              }
-                              addEntryMutation.mutate({
-                                threadId: thread.id,
-                                body,
-                                parentEntryId: entry.id,
-                              })
-                            }}
-                          >
-                            <textarea
-                              className="min-h-[64px] w-full resize-none overflow-y-hidden rounded-md border border-gray-300 px-3 py-2 text-sm"
-                              placeholder={t('home.replyPlaceholder')}
-                              value={replyDrafts[entry.id] ?? ''}
-                              onChange={(event) =>
-                                setReplyDrafts((prev) => ({
-                                  ...prev,
-                                  [entry.id]: event.target.value,
-                                }))
-                              }
-                              onInput={handleTextareaInput}
-                              data-autoresize="true"
-                              ref={(element) => resizeTextarea(element)}
-                            />
-                            <div className="flex items-center gap-2">
-                              <button
-                                className="rounded-md bg-gray-900 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white"
-                                type="submit"
-                                disabled={addEntryMutation.isPending}
-                              >
-                                {t('home.reply')}
-                              </button>
-                              <button
-                                className="rounded-md border border-gray-300 px-2 py-1 text-[10px] text-gray-700"
-                                type="button"
-                                onClick={() => setActiveReplyId(null)}
-                              >
-                                {t('home.cancel')}
-                              </button>
-                            </div>
-                          </form>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-                <form
-                  className="mt-2 space-y-2 sm:mt-4"
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    const body = entryDrafts[thread.id]?.trim()
-                    if (!body) {
-                      return
-                    }
-                    addEntryMutation.mutate({ threadId: thread.id, body })
-                  }}
-                >
-                  <textarea
-                    className="min-h-[72px] w-full resize-none overflow-y-hidden rounded-md border border-gray-300 px-3 py-2 text-sm"
-                    placeholder={t('home.entryPlaceholder')}
-                    value={entryDrafts[thread.id] ?? ''}
-                    onChange={(event) =>
-                      setEntryDrafts((prev) => ({
-                        ...prev,
-                        [thread.id]: event.target.value,
-                      }))
-                    }
-                    onInput={handleTextareaInput}
-                    data-autoresize="true"
-                    ref={(element) => resizeTextarea(element)}
-                  />
-                  <button
-                    className="rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white"
-                    type="submit"
-                    disabled={addEntryMutation.isPending}
-                  >
-                    {addEntryMutation.isPending ? t('home.loading') : t('home.addEntry')}
-                  </button>
-                </form>
-                <div className="mt-2 text-xs text-gray-500 sm:mt-4">
-                  {t('home.lastActivity', {
-                    time: formatDistanceToNow(new Date(thread.lastActivityAt), {
-                      addSuffix: true,
-                    }),
-                  })}
-                </div>
-              </div>
+                thread={thread}
+                theme={theme}
+                categories={categoriesQuery.data ?? []}
+                normalizedSearchQuery={normalizedSearchQuery}
+                entryDepth={entryDepth}
+                linkTo={`/threads/${thread.id}`}
+                isEditing={isEditing}
+                editingThreadBody={editingThreadBody}
+                editingThreadCategories={editingThreadCategories}
+                editingCategoryInput={editingCategoryInput}
+                isAddingEditingCategory={isAddingEditingCategory}
+                editingEntryId={editingEntryId}
+                editingEntryBody={editingEntryBody}
+                activeReplyId={activeReplyId}
+                replyDrafts={replyDrafts}
+                newEntryDraft={entryDrafts[thread.id] ?? ''}
+                isUpdateThreadPending={updateThreadMutation.isPending}
+                isCreateCategoryPending={createCategoryMutation.isPending}
+                isPinPending={pinThreadMutation.isPending}
+                isUnpinPending={unpinThreadMutation.isPending}
+                isHidePending={hideThreadMutation.isPending}
+                isEntryUpdatePending={updateEntryMutation.isPending}
+                isEntryHidePending={hideEntryMutation.isPending}
+                isEntryToggleMutePending={toggleEntryMuteMutation.isPending}
+                isReplyPending={addEntryMutation.isPending}
+                isAddEntryPending={addEntryMutation.isPending}
+                t={t}
+                onStartEdit={() => {
+                  setEditingThreadId(thread.id)
+                  setEditingThreadBody(thread.body ?? '')
+                  setEditingThreadCategories(thread.categories.map((item) => item.name))
+                  setEditingCategoryInput('')
+                  setIsAddingEditingCategory(false)
+                }}
+                onCancelEdit={() => {
+                  setEditingThreadId(null)
+                  setEditingThreadBody('')
+                  setEditingThreadCategories([])
+                  setEditingCategoryInput('')
+                  setIsAddingEditingCategory(false)
+                }}
+                onEditingThreadBodyChange={setEditingThreadBody}
+                onEditingCategoryToggle={(categoryName) => {
+                  setEditingThreadCategories((prev) =>
+                    prev.includes(categoryName)
+                      ? prev.filter((item) => item !== categoryName)
+                      : [...prev, categoryName],
+                  )
+                }}
+                onEditingCategoryInputChange={setEditingCategoryInput}
+                onEditingCategoryOpen={() => setIsAddingEditingCategory(true)}
+                onEditingCategoryCancel={() => {
+                  setEditingCategoryInput('')
+                  setIsAddingEditingCategory(false)
+                }}
+                onEditingCategorySubmit={() => submitCategory('edit')}
+                onSaveEdit={() =>
+                  updateThreadMutation.mutate({
+                    threadId: thread.id,
+                    body: editingThreadBody,
+                    categoryNames: editingThreadCategories,
+                  })
+                }
+                onTogglePin={() => {
+                  if (thread.pinned) {
+                    unpinThreadMutation.mutate(thread.id)
+                  } else {
+                    pinThreadMutation.mutate(thread.id)
+                  }
+                }}
+                onToggleMute={() => {
+                  if (!thread.body) {
+                    return
+                  }
+                  toggleThreadMuteMutation.mutate({
+                    threadId: thread.id,
+                    body: toggleMutedText(thread.body),
+                    categoryNames: thread.categories.map((item) => item.name),
+                  })
+                }}
+                onHide={() => hideThreadMutation.mutate(thread.id)}
+                onEntryEditStart={(entryId, body) => {
+                  setEditingEntryId(entryId)
+                  setEditingEntryBody(body)
+                }}
+                onEntryEditChange={setEditingEntryBody}
+                onEntryEditCancel={() => {
+                  setEditingEntryId(null)
+                  setEditingEntryBody('')
+                }}
+                onEntryEditSave={(entryId) => {
+                  if (!editingEntryBody.trim()) {
+                    return
+                  }
+                  updateEntryMutation.mutate({
+                    entryId,
+                    body: editingEntryBody,
+                  })
+                }}
+                onEntryToggleMute={(entryId, body) => {
+                  if (!body) {
+                    return
+                  }
+                  toggleEntryMuteMutation.mutate({ entryId, body })
+                }}
+                onEntryHide={(entryId) => hideEntryMutation.mutate(entryId)}
+                onReplyStart={(entryId) => {
+                  setActiveReplyId(entryId)
+                  setReplyDrafts((prev) => ({
+                    ...prev,
+                    [entryId]: prev[entryId] ?? '',
+                  }))
+                }}
+                onReplyChange={(entryId, value) =>
+                  setReplyDrafts((prev) => ({
+                    ...prev,
+                    [entryId]: value,
+                  }))
+                }
+                onReplyCancel={() => setActiveReplyId(null)}
+                onReplySubmit={(entryId) => {
+                  const body = replyDrafts[entryId]?.trim()
+                  if (!body) {
+                    return
+                  }
+                  addEntryMutation.mutate({
+                    threadId: thread.id,
+                    body,
+                    parentEntryId: entryId,
+                  })
+                }}
+                onNewEntryChange={(value) =>
+                  setEntryDrafts((prev) => ({
+                    ...prev,
+                    [thread.id]: value,
+                  }))
+                }
+                onNewEntrySubmit={() => {
+                  const body = entryDrafts[thread.id]?.trim()
+                  if (!body) {
+                    return
+                  }
+                  addEntryMutation.mutate({ threadId: thread.id, body })
+                }}
+                handleTextareaInput={handleTextareaInput}
+                resizeTextarea={resizeTextarea}
+              />
             )
           })}
           {!(normalizedSearchQuery ? searchThreadsQuery : threadsQuery).isLoading &&

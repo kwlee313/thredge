@@ -6,10 +6,15 @@ data class EntryUpdateRequest(
     val body: String? = null,
 )
 
-data class EntryResponse(
+data class EntryDetail(
     val id: String,
     val body: String,
     val parentEntryId: String?,
     val createdAt: Instant,
     val threadId: String?,
+)
+
+data class EntryRequest(
+    val body: String = "",
+    val parentEntryId: String? = null,
 )

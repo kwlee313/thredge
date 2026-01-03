@@ -21,20 +21,8 @@ data class ThreadDetail(
     val entries: List<EntryDetail>,
 )
 
-data class EntryDetail(
-    val id: String,
-    val body: String,
-    val parentEntryId: String?,
-    val createdAt: Instant,
-)
-
 data class ThreadRequest(
     val title: String? = null,
     val body: String? = null,
     val categoryNames: List<String> = emptyList(),
-)
-
-data class EntryRequest(
-    val body: String = "",
-    val parentEntryId: String? = null,
 )

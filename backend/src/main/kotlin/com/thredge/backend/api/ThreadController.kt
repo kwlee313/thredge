@@ -6,6 +6,7 @@ import com.thredge.backend.api.dto.ThreadDetail
 import com.thredge.backend.api.dto.ThreadRequest
 import com.thredge.backend.api.dto.ThreadSummary
 import com.thredge.backend.service.ThreadService
+import com.thredge.backend.support.AuthSupport
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping

@@ -2,6 +2,7 @@ package com.thredge.backend.api
 
 import com.thredge.backend.api.dto.AuthResponse
 import com.thredge.backend.api.dto.LoginRequest
+import com.thredge.backend.support.AuthSupport
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.security.authentication.AuthenticationManager

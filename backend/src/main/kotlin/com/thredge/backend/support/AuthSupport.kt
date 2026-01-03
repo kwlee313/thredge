@@ -1,4 +1,4 @@
-package com.thredge.backend.api
+package com.thredge.backend.support
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken
 import org.springframework.security.core.Authentication

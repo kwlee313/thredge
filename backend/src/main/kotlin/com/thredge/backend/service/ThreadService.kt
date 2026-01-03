@@ -1,6 +1,5 @@
 package com.thredge.backend.service
 
-import com.thredge.backend.api.dto.EntryDetail
 import com.thredge.backend.api.dto.EntryRequest
 import com.thredge.backend.api.dto.ThreadDetail
 import com.thredge.backend.api.dto.ThreadRequest

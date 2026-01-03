@@ -26,14 +26,6 @@ class ThreadMapper {
             pinned = thread.isPinned,
         )
 
-    fun toEntryDetail(entry: EntryEntity): EntryDetail =
-        EntryDetail(
-            id = entry.id.toString(),
-            body = entry.body,
-            parentEntryId = entry.parentEntryId?.toString(),
-            createdAt = entry.createdAt,
-        )
-
     fun toThreadDetail(thread: ThreadEntity, entries: List<EntryEntity>): ThreadDetail =
         ThreadDetail(
             id = thread.id.toString(),
@@ -43,6 +35,15 @@ class ThreadMapper {
             lastActivityAt = thread.lastActivityAt,
             categories = thread.categories.sortedBy { it.name }.map(::toCategorySummary),
             pinned = thread.isPinned,
-            entries = entries.filter { !it.isHidden }.map(::toEntryDetail),
+            entries = entries.filter { !it.isHidden }.map { toEntryDetail(it, thread.id) },
+        )
+
+    fun toEntryDetail(entry: EntryEntity, threadId: java.util.UUID? = entry.thread?.id): EntryDetail =
+        EntryDetail(
+            id = entry.id.toString(),
+            body = entry.body,
+            parentEntryId = entry.parentEntryId?.toString(),
+            createdAt = entry.createdAt,
+            threadId = threadId?.toString(),
         )
 }

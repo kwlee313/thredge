@@ -17,17 +17,21 @@ import org.springframework.stereotype.Service
 
 @Service
 class CategoryService(
-    private val categoryRepository: CategoryRepository,
-    private val threadRepository: ThreadRepository,
-    private val categoryMapper: CategoryMapper,
+        private val categoryRepository: CategoryRepository,
+        private val threadRepository: ThreadRepository,
+        private val categoryMapper: CategoryMapper,
 ) {
     fun list(ownerUsername: String): List<CategorySummary> =
-        categoryRepository.findByOwnerUsernameOrderByName(ownerUsername)
-            .map(categoryMapper::toSummary)
+            categoryRepository
+                    .findByOwnerUsernameOrderByName(ownerUsername)
+                    .map(categoryMapper::toSummary)
 
     fun counts(ownerUsername: String): CategoryCountsResponse {
-        val counts = threadRepository.countThreadsByCategory(ownerUsername)
-            .map { CategoryCountSummary(id = it.getId().toString(), count = it.getCount()) }
+        val categories = categoryRepository.findByOwnerUsernameOrderByName(ownerUsername)
+        val counts =
+                categories.map {
+                    CategoryCountSummary(id = it.id!!.toString(), count = it.threadCount)
+                }
         val uncategorizedCount = threadRepository.countUncategorizedThreads(ownerUsername)
         return CategoryCountsResponse(counts = counts, uncategorizedCount = uncategorizedCount)
     }
@@ -38,21 +42,22 @@ class CategoryService(
         val existing = categoryRepository.findByOwnerUsernameOrderByName(ownerUsername)
         val existingByKey = existing.associateBy { CategoryNameSupport.key(it.name) }
         val category =
-            existingByKey[CategoryNameSupport.key(name)]
-                ?: categoryRepository.save(
-                    CategoryEntity(
-                        name = name,
-                        ownerUsername = ownerUsername,
-                    ),
-                )
+                existingByKey[CategoryNameSupport.key(name)]
+                        ?: categoryRepository.save(
+                                CategoryEntity(
+                                        name = name,
+                                        ownerUsername = ownerUsername,
+                                ),
+                        )
         return categoryMapper.toSummary(category)
     }
 
     fun update(ownerUsername: String, id: String, request: CategoryRequest): CategorySummary {
         val uuid = parseId(id)
-        val category = categoryRepository.findById(uuid).orElseThrow {
-            NotFoundException("Category not found.")
-        }
+        val category =
+                categoryRepository.findById(uuid).orElseThrow {
+                    NotFoundException("Category not found.")
+                }
         if (category.ownerUsername != ownerUsername) {
             throw NotFoundException("Category not found.")
         }
@@ -61,7 +66,10 @@ class CategoryService(
         val incomingKey = CategoryNameSupport.key(name)
         if (CategoryNameSupport.key(category.name) != incomingKey) {
             val existing = categoryRepository.findByOwnerUsernameOrderByName(ownerUsername)
-            val conflict = existing.firstOrNull { it.id != category.id && CategoryNameSupport.key(it.name) == incomingKey }
+            val conflict =
+                    existing.firstOrNull {
+                        it.id != category.id && CategoryNameSupport.key(it.name) == incomingKey
+                    }
             if (conflict != null) {
                 throw ConflictException("Category already exists.")
             }
@@ -73,9 +81,10 @@ class CategoryService(
 
     fun delete(ownerUsername: String, id: String) {
         val uuid = parseId(id)
-        val category = categoryRepository.findById(uuid).orElseThrow {
-            NotFoundException("Category not found.")
-        }
+        val category =
+                categoryRepository.findById(uuid).orElseThrow {
+                    NotFoundException("Category not found.")
+                }
         if (category.ownerUsername != ownerUsername) {
             throw NotFoundException("Category not found.")
         }
@@ -86,6 +95,5 @@ class CategoryService(
         categoryRepository.delete(category)
     }
 
-    private fun parseId(id: String): UUID =
-        IdParser.parseUuid(id, "Invalid category id.")
+    private fun parseId(id: String): UUID = IdParser.parseUuid(id, "Invalid category id.")
 }

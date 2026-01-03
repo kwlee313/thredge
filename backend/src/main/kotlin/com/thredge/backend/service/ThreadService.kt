@@ -136,6 +136,12 @@ class ThreadService(
                         )
                         .apply { this.categories = categories.toMutableSet() }
         val saved = threadRepository.save(thread)
+
+        categories.forEach {
+            it.threadCount += 1
+            categoryRepository.save(it)
+        }
+
         return threadMapper.toThreadSummary(saved)
     }
 
@@ -159,9 +165,29 @@ class ThreadService(
         } else if (!request.title.isNullOrBlank()) {
             thread.title = request.title.trim()
         }
+
         request.categoryNames?.let { names ->
-            thread.categories = resolveCategories(names, ownerUsername).toMutableSet()
+            val oldCategories = thread.categories.toList()
+            val newCategories = resolveCategories(names, ownerUsername)
+
+            val oldIds = oldCategories.map { it.id }.toSet()
+            val newIds = newCategories.map { it.id }.toSet()
+
+            // Decrement counts for removed categories
+            oldCategories.filter { it.id !in newIds }.forEach {
+                it.threadCount -= 1
+                categoryRepository.save(it)
+            }
+
+            // Increment counts for added categories
+            newCategories.filter { it.id !in oldIds }.forEach {
+                it.threadCount += 1
+                categoryRepository.save(it)
+            }
+
+            thread.categories = newCategories.toMutableSet()
         }
+
         thread.lastActivityAt = Instant.now()
         val saved = threadRepository.save(thread)
         return threadMapper.toThreadSummary(saved)
@@ -172,14 +198,28 @@ class ThreadService(
         val thread = findThread(id, ownerUsername)
         thread.isHidden = true
         threadRepository.save(thread)
+
+        thread.categories.forEach {
+            it.threadCount -= 1
+            categoryRepository.save(it)
+        }
     }
 
     @Transactional
     fun restoreThread(ownerUsername: String, id: String): ThreadSummary {
         val thread = findThread(id, ownerUsername, includeHidden = true)
+        if (!thread.isHidden) {
+            return threadMapper.toThreadSummary(thread)
+        }
         thread.isHidden = false
         thread.lastActivityAt = Instant.now()
         val saved = threadRepository.save(thread)
+
+        thread.categories.forEach {
+            it.threadCount += 1
+            categoryRepository.save(it)
+        }
+
         return threadMapper.toThreadSummary(saved)
     }
 

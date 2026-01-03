@@ -9,16 +9,16 @@ import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 
 interface ThreadRepository : JpaRepository<ThreadEntity, UUID> {
-    fun findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
-            ownerUsername: String,
-    ): List<ThreadEntity>
-    fun findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
-            ownerUsername: String,
-            pageable: Pageable,
-    ): Slice<ThreadEntity>
+        fun findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
+                ownerUsername: String,
+        ): List<ThreadEntity>
+        fun findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
+                ownerUsername: String,
+                pageable: Pageable,
+        ): Slice<ThreadEntity>
 
-    @Query(
-            """
+        @Query(
+                """
         select distinct t from ThreadEntity t
         left join t.categories c
         where t.ownerUsername = :ownerUsername
@@ -31,96 +31,77 @@ interface ThreadRepository : JpaRepository<ThreadEntity, UUID> {
           )
         order by t.isPinned desc, t.lastActivityAt desc
         """,
-    )
-    fun findFeedFiltered(
-            @Param("ownerUsername") ownerUsername: String,
-            @Param("date") date: java.time.LocalDate?,
-            @Param("categoryIds") categoryIds: List<java.util.UUID>?,
-            @Param("includeUncategorized") includeUncategorized: Boolean,
-            pageable: Pageable,
-    ): Slice<ThreadEntity>
-    fun findByOwnerUsernameAndIsHiddenTrueOrderByLastActivityAtDesc(
-            ownerUsername: String,
-    ): List<ThreadEntity>
-    fun findByOwnerUsernameAndIsHiddenTrueOrderByLastActivityAtDesc(
-            ownerUsername: String,
-            pageable: Pageable,
-    ): Slice<ThreadEntity>
-    fun findAllByCategoriesIdAndOwnerUsername(
-            categoryId: UUID,
-            ownerUsername: String
-    ): List<ThreadEntity>
-    fun findByIdAndOwnerUsername(id: UUID, ownerUsername: String): ThreadEntity?
+        )
+        fun findFeedFiltered(
+                @Param("ownerUsername") ownerUsername: String,
+                @Param("date") date: java.time.LocalDate?,
+                @Param("categoryIds") categoryIds: List<java.util.UUID>?,
+                @Param("includeUncategorized") includeUncategorized: Boolean,
+                pageable: Pageable,
+        ): Slice<ThreadEntity>
+        fun findByOwnerUsernameAndIsHiddenTrueOrderByLastActivityAtDesc(
+                ownerUsername: String,
+        ): List<ThreadEntity>
+        fun findByOwnerUsernameAndIsHiddenTrueOrderByLastActivityAtDesc(
+                ownerUsername: String,
+                pageable: Pageable,
+        ): Slice<ThreadEntity>
+        fun findAllByCategoriesIdAndOwnerUsername(
+                categoryId: UUID,
+                ownerUsername: String
+        ): List<ThreadEntity>
+        fun findByIdAndOwnerUsername(id: UUID, ownerUsername: String): ThreadEntity?
 
-    @Query(
-            """
+        @Query(
+                """
         select distinct t from ThreadEntity t
         left join EntryEntity e on e.thread = t
         where t.ownerUsername = :ownerUsername
           and t.isHidden = false
           and (
             lower(t.title) like lower(concat('%', :query, '%')) or
-            lower(coalesce(t.body, '')) like lower(concat('%', :query, '%')) or
+            lower(t.body) like lower(concat('%', :query, '%')) or
             (e.isHidden = false and lower(e.body) like lower(concat('%', :query, '%')))
           )
         order by t.isPinned desc, t.lastActivityAt desc
         """,
-    )
-    fun searchVisibleThreads(
-            @Param("ownerUsername") ownerUsername: String,
-            @Param("query") query: String,
-            pageable: Pageable,
-    ): Slice<ThreadEntity>
+        )
+        fun searchVisibleThreads(
+                @Param("ownerUsername") ownerUsername: String,
+                @Param("query") query: String,
+                pageable: Pageable,
+        ): Slice<ThreadEntity>
 
-    @Query(
-            """
+        @Query(
+                """
         select distinct t from ThreadEntity t
         left join EntryEntity e on e.thread = t
         where t.ownerUsername = :ownerUsername
           and t.isHidden = true
           and (
             lower(t.title) like lower(concat('%', :query, '%')) or
-            lower(coalesce(t.body, '')) like lower(concat('%', :query, '%')) or
-            lower(coalesce(e.body, '')) like lower(concat('%', :query, '%'))
+            lower(t.body) like lower(concat('%', :query, '%')) or
+            lower(e.body) like lower(concat('%', :query, '%'))
           )
         order by t.isPinned desc, t.lastActivityAt desc
         """,
-    )
-    fun searchHiddenThreads(
-            @Param("ownerUsername") ownerUsername: String,
-            @Param("query") query: String,
-            pageable: Pageable,
-    ): Slice<ThreadEntity>
+        )
+        fun searchHiddenThreads(
+                @Param("ownerUsername") ownerUsername: String,
+                @Param("query") query: String,
+                pageable: Pageable,
+        ): Slice<ThreadEntity>
 
-    @Query(
-            """
-        select c.id as id, count(t.id) as count
-        from ThreadEntity t
-        join t.categories c
-        where t.ownerUsername = :ownerUsername
-          and t.isHidden = false
-        group by c.id
-        """,
-    )
-    fun countThreadsByCategory(
-            @Param("ownerUsername") ownerUsername: String,
-    ): List<CategoryCountView>
-
-    @Query(
-            """
+        @Query(
+                """
         select count(t.id)
         from ThreadEntity t
         where t.ownerUsername = :ownerUsername
           and t.isHidden = false
           and t.categories is empty
         """,
-    )
-    fun countUncategorizedThreads(
-            @Param("ownerUsername") ownerUsername: String,
-    ): Long
-}
-
-interface CategoryCountView {
-    fun getId(): UUID
-    fun getCount(): Long
+        )
+        fun countUncategorizedThreads(
+                @Param("ownerUsername") ownerUsername: String,
+        ): Long
 }

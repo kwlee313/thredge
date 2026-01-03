@@ -290,6 +290,27 @@ export function HomeFeed({ username }: HomeFeedProps) {
     return new Map(counts.map((item) => [item.id, item.count]))
   }, [categoryCountsQuery.data])
 
+  const visibleCategoryCounts = useMemo(() => {
+    if (!normalizedSearchQuery) {
+      return null
+    }
+
+    const counts = new Map<string, number>()
+    let uncategorized = 0
+
+    filteredThreads.forEach((thread) => {
+      if (thread.categories.length === 0) {
+        uncategorized++
+      } else {
+        thread.categories.forEach((cat) => {
+          counts.set(cat.id, (counts.get(cat.id) ?? 0) + 1)
+        })
+      }
+    })
+
+    return { counts, uncategorized }
+  }, [normalizedSearchQuery, filteredThreads])
+
   const activeThreadsQuery = normalizedSearchQuery ? searchThreadsQuery : threadsQuery
 
   return (
@@ -419,6 +440,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
             <button
               className={`w-full sm:w-auto ${uiTokens.button.secondaryMd}`}
               type="button"
+              onClick={() => uiActions.setActiveComposerTab('search')}
             >
               {t('home.searchTab')}
             </button>
@@ -463,17 +485,25 @@ export function HomeFeed({ username }: HomeFeedProps) {
           <CategoryFilterBar
             categories={
               categoriesQuery.data?.map((category) => {
-                const count = categoryCountsById.get(category.id) ?? 0
+                const globalCount = categoryCountsById.get(category.id) ?? 0
+                const displayCount = visibleCategoryCounts
+                  ? visibleCategoryCounts.counts.get(category.id) ?? 0
+                  : globalCount
+
                 return {
                   id: category.id,
                   name: category.name,
-                  count,
-                  canDelete: categoryCountsQuery.isSuccess && count === 0,
+                  count: displayCount,
+                  canDelete: categoryCountsQuery.isSuccess && globalCount === 0,
                 }
               }) ?? []
             }
             selectedCategories={selectedCategories}
-            uncategorizedCount={categoryCountsQuery.data?.uncategorizedCount ?? 0}
+            uncategorizedCount={
+              visibleCategoryCounts
+                ? visibleCategoryCounts.uncategorized
+                : categoryCountsQuery.data?.uncategorizedCount ?? 0
+            }
             uncategorizedToken={UNCATEGORIZED_TOKEN}
             labels={{
               title: t('home.categories'),

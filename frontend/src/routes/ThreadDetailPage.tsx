@@ -1,10 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
 import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  addEntry,
   fetchCategories,
   fetchThread,
 } from '../lib/api'
@@ -20,12 +19,13 @@ import { ThreadCardHeader } from '../components/home/ThreadCardHeader'
 import { ThreadEditor } from '../components/home/ThreadEditor'
 import { useCategoryMutations } from '../hooks/useCategoryMutations'
 import { queryKeys } from '../lib/queryKeys'
+import { useEntryActions } from '../hooks/useEntryActions'
+import { uiTokens } from '../lib/uiTokens'
 
 export function ThreadDetailPage() {
   const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const { state, actions } = useThreadDetailState()
   const {
     entryBody,
@@ -91,23 +91,16 @@ export function ThreadDetailPage() {
     createCategoryMutation.mutate({ name })
   }
 
-  const entryMutation = useMutation({
-    mutationFn: ({
-      body,
-      parentEntryId,
-    }: {
-      body: string
-      parentEntryId?: string
-    }) => addEntry(id ?? '', body, parentEntryId),
-    onSuccess: async (_, variables) => {
+  const { createEntryMutation } = useEntryActions({
+    threadId: id ?? undefined,
+    invalidateTargets: ['thread', 'feed'],
+    onEntryCreated: (_created, variables) => {
       if (variables.parentEntryId) {
-        updateReplyDraft(variables.parentEntryId as string, '')
+        updateReplyDraft(variables.parentEntryId, '')
         cancelReply()
       } else {
         setEntryBody('')
       }
-      await queryClient.invalidateQueries({ queryKey: queryKeys.thread.detail(id) })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.feed })
     },
   })
 
@@ -266,7 +259,7 @@ export function ThreadDetailPage() {
                 isAddingCategory={isAddingEditingCategory}
                 isCreateCategoryPending={createCategoryMutation.isPending}
                 isSaving={updateThreadMutation.isPending}
-                buttonTextClass="text-sm"
+                buttonSize="md"
                 onToggleCategory={toggleEditingCategory}
                 onCategoryInputChange={setEditingCategoryInput}
                 onCategoryOpen={() => setIsAddingEditingCategory(true)}
@@ -321,7 +314,7 @@ export function ThreadDetailPage() {
                   isEntryUpdatePending={updateEntryMutation.isPending}
                   isEntryHidePending={hideEntryMutation.isPending}
                   isEntryToggleMutePending={toggleEntryMuteMutation.isPending}
-                  isReplyPending={entryMutation.isPending}
+                  isReplyPending={createEntryMutation.isPending}
                   onEditStart={() => startEntryEdit(entry)}
                   onEditChange={setEditingEntryBody}
                   onEditCancel={cancelEntryEdit}
@@ -343,7 +336,11 @@ export function ThreadDetailPage() {
                     if (!body) {
                       return
                     }
-                    entryMutation.mutate({ body, parentEntryId: entry.id })
+                    createEntryMutation.mutate({
+                      threadId: threadQuery.data.id,
+                      body,
+                      parentEntryId: entry.id,
+                    })
                   }}
                   handleTextareaInput={handleTextareaInput}
                   resizeTextarea={resizeTextarea}
@@ -360,7 +357,10 @@ export function ThreadDetailPage() {
                 if (!entryBody.trim()) {
                   return
                 }
-                entryMutation.mutate({ body: entryBody })
+                createEntryMutation.mutate({
+                  threadId: threadQuery.data.id,
+                  body: entryBody,
+                })
               }}
             >
               <textarea
@@ -373,11 +373,11 @@ export function ThreadDetailPage() {
                 ref={(element) => resizeTextarea(element)}
               />
               <button
-                className="rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white"
+                className={uiTokens.button.primaryMd}
                 type="submit"
-                disabled={entryMutation.isPending}
+                disabled={createEntryMutation.isPending}
               >
-                {entryMutation.isPending ? t('home.loading') : t('home.addEntry')}
+                {createEntryMutation.isPending ? t('home.loading') : t('home.addEntry')}
               </button>
             </form>
             <div className="mt-2 text-xs text-gray-500 sm:mt-4">

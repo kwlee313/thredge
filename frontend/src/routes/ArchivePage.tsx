@@ -14,6 +14,7 @@ import {
 import { highlightMatches } from '../lib/highlightMatches'
 import { useArchivedSearch } from '../hooks/useArchivedSearch'
 import { queryKeys } from '../lib/queryKeys'
+import { uiTokens } from '../lib/uiTokens'
 
 export function ArchivePage() {
   const { t } = useTranslation()
@@ -71,7 +72,7 @@ export function ArchivePage() {
         </div>
       )}
 
-      <div className="rounded-lg border bg-white p-3 text-gray-900 sm:p-4">
+      <div className={uiTokens.card.surface}>
         <div className="text-sm font-semibold">{t('archive.hiddenThreads')}</div>
         <input
           className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm sm:mt-2"
@@ -126,7 +127,7 @@ export function ArchivePage() {
         </div>
       </div>
 
-      <div className="rounded-lg border bg-white p-3 text-gray-900 sm:p-4">
+      <div className={uiTokens.card.surface}>
         <div className="text-sm font-semibold">{t('archive.hiddenEntries')}</div>
         <input
           className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm sm:mt-2"

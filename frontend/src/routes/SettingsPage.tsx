@@ -10,6 +10,7 @@ import i18n from '../i18n'
 import { fetchCategories } from '../lib/api'
 import { queryKeys } from '../lib/queryKeys'
 import { useCategoryMutations } from '../hooks/useCategoryMutations'
+import { uiTokens } from '../lib/uiTokens'
 
 const schema = z.object({
   uiLanguage: z.enum(supportedLanguages),
@@ -73,7 +74,7 @@ export function SettingsPage() {
       <h1 className="text-xl font-semibold">{t('settings.title')}</h1>
 
       <form
-        className="space-y-3 rounded-lg border bg-white p-3 text-gray-900 sm:space-y-4 sm:p-4"
+        className={`space-y-3 ${uiTokens.card.surface} sm:space-y-4`}
         onSubmit={handleSubmit(onSubmit)}
       >
         <div className="space-y-1">
@@ -90,13 +91,13 @@ export function SettingsPage() {
 
         <button
           type="submit"
-          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white"
+          className={uiTokens.button.primaryMd}
         >
           {t('settings.save')}
         </button>
       </form>
 
-      <div className="rounded-lg border bg-white p-3 text-gray-900 sm:p-4">
+      <div className={uiTokens.card.surface}>
         <div className="text-sm font-semibold">{t('settings.categories')}</div>
         <form
           className="mt-2 flex gap-2 sm:mt-3"
@@ -115,7 +116,7 @@ export function SettingsPage() {
             onChange={(event) => setNewCategory(event.target.value)}
           />
           <button
-            className="rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white"
+            className={uiTokens.button.primaryMd}
             type="submit"
             disabled={createCategoryMutation.isPending}
           >
@@ -154,14 +155,14 @@ export function SettingsPage() {
                     onChange={(event) => setEditingCategoryName(event.target.value)}
                   />
                   <button
-                    className="rounded-md bg-gray-900 px-3 py-1 text-xs text-white"
+                    className={uiTokens.button.primarySm}
                     type="submit"
                     disabled={updateCategoryMutation.isPending}
                   >
                     {t('settings.save')}
                   </button>
                   <button
-                    className="rounded-md border border-gray-300 px-3 py-1 text-xs text-gray-700"
+                    className={uiTokens.button.secondarySm}
                     type="button"
                     onClick={() => {
                       setEditingCategoryId(null)

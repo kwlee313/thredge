@@ -8,6 +8,7 @@ import { isMutedText, stripMutedText } from '../../lib/mutedText'
 import { EntryCard } from './EntryCard'
 import { ThreadCardHeader } from './ThreadCardHeader'
 import { ThreadEditor } from './ThreadEditor'
+import { uiTokens } from '../../lib/uiTokens'
 
 type ThreadCardData = {
   thread: ThreadDetail
@@ -278,7 +279,7 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
           ref={(element) => resizeTextarea(element)}
         />
         <button
-          className="rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white"
+          className={uiTokens.button.primaryMd}
           type="submit"
           disabled={isAddEntryPending}
         >

@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  addEntry,
   createThread,
   fetchCategories,
   fetchThreadFeed,
@@ -22,6 +21,14 @@ import { THREAD_LIST_INVALIDATIONS } from '../../hooks/threadActionPresets'
 import { useHomeFeedState } from '../../hooks/useHomeFeedState'
 import { useCategoryMutations } from '../../hooks/useCategoryMutations'
 import { queryKeys } from '../../lib/queryKeys'
+import { useEntryActions } from '../../hooks/useEntryActions'
+import { uiTokens } from '../../lib/uiTokens'
+import {
+  removeEntryFromFeed,
+  removeThreadFromFeed,
+  setThreadPinnedInFeed,
+  updateEntryInFeed,
+} from '../../lib/threadCache'
 
 type HomeFeedProps = {
   username: string
@@ -130,25 +137,15 @@ export function HomeFeed({ username }: HomeFeedProps) {
     createCategoryMutation.mutate({ name, target })
   }
 
-  const addEntryMutation = useMutation({
-    mutationFn: ({
-      threadId,
-      body,
-      parentEntryId,
-    }: {
-      threadId: string
-      body: string
-      parentEntryId?: string
-    }) => addEntry(threadId, body, parentEntryId),
-    onSuccess: async (_, variables) => {
+  const { createEntryMutation } = useEntryActions({
+    invalidateTargets: ['feed', 'search'],
+    onEntryCreated: (_created, variables) => {
       if (variables.parentEntryId) {
-        replyActions.updateReplyDraft(variables.parentEntryId as string, '')
+        replyActions.updateReplyDraft(variables.parentEntryId, '')
         replyActions.cancelReply()
       } else {
         entryActions.updateEntryDraft(variables.threadId, '')
       }
-      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.feed })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.threads.searchRoot })
     },
   })
 
@@ -170,71 +167,22 @@ export function HomeFeed({ username }: HomeFeedProps) {
       threadActions.cancelEditThread()
     },
     onThreadHidden: (threadId) => {
-      queryClient.setQueryData(queryKeys.threads.feed, (data) => {
-        if (!Array.isArray(data)) {
-          return data
-        }
-        return data.filter((thread) => thread.id !== threadId)
-      })
+      removeThreadFromFeed(queryClient, threadId)
     },
     onThreadPinned: (updated) => {
-      queryClient.setQueryData(queryKeys.threads.feed, (data) => {
-        if (!Array.isArray(data)) {
-          return data
-        }
-        const next = data.map((thread) =>
-          thread.id === updated.id ? { ...thread, pinned: true } : thread,
-        )
-        return next.sort((a, b) => {
-          if (a.pinned !== b.pinned) {
-            return a.pinned ? -1 : 1
-          }
-          return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()
-        })
-      })
+      setThreadPinnedInFeed(queryClient, updated, true)
     },
     onThreadUnpinned: (updated) => {
-      queryClient.setQueryData(queryKeys.threads.feed, (data) => {
-        if (!Array.isArray(data)) {
-          return data
-        }
-        const next = data.map((thread) =>
-          thread.id === updated.id ? { ...thread, pinned: false } : thread,
-        )
-        return next.sort((a, b) => {
-          if (a.pinned !== b.pinned) {
-            return a.pinned ? -1 : 1
-          }
-          return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()
-        })
-      })
+      setThreadPinnedInFeed(queryClient, updated, false)
     },
     onEntryUpdated: (entryId, body) => {
       if (editingEntryId === entryId) {
         entryActions.cancelEntryEdit()
       }
-      queryClient.setQueryData(queryKeys.threads.feed, (data) => {
-        if (!Array.isArray(data)) {
-          return data
-        }
-        return data.map((thread) => ({
-          ...thread,
-          entries: thread.entries.map((entry) =>
-            entry.id === entryId ? { ...entry, body } : entry,
-          ),
-        }))
-      })
+      updateEntryInFeed(queryClient, entryId, body)
     },
     onEntryHidden: (entryId) => {
-      queryClient.setQueryData(queryKeys.threads.feed, (data) => {
-        if (!Array.isArray(data)) {
-          return data
-        }
-        return data.map((thread) => ({
-          ...thread,
-          entries: thread.entries.filter((entry) => entry.id !== entryId),
-        }))
-      })
+      removeEntryFromFeed(queryClient, entryId)
     },
   })
 
@@ -306,14 +254,14 @@ export function HomeFeed({ username }: HomeFeedProps) {
 
   return (
     <div className="space-y-4 sm:space-y-8">
-      <div className="rounded-lg border bg-white p-3 text-gray-900 sm:p-4">
+      <div className={uiTokens.card.surface}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs font-semibold">
             <button
               className={`rounded-full border px-3 py-1 transition-all ${
                 activeComposerTab === 'new'
-                  ? 'border-gray-900 bg-gray-900 text-white'
-                  : 'border-gray-300 text-gray-700'
+                  ? uiTokens.button.pillActive
+                  : uiTokens.button.pillInactive
               }`}
               type="button"
               onClick={() => uiActions.setActiveComposerTab('new')}
@@ -323,8 +271,8 @@ export function HomeFeed({ username }: HomeFeedProps) {
             <button
               className={`rounded-full border px-3 py-1 transition-all ${
                 activeComposerTab === 'search'
-                  ? 'border-gray-900 bg-gray-900 text-white'
-                  : 'border-gray-300 text-gray-700'
+                  ? uiTokens.button.pillActive
+                  : uiTokens.button.pillInactive
               }`}
               type="button"
               onClick={() => uiActions.setActiveComposerTab('search')}
@@ -404,7 +352,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
               </div>
             </div>
             <button
-              className="rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white"
+              className={uiTokens.button.primaryMd}
               type="submit"
               disabled={createThreadMutation.isPending}
             >
@@ -432,7 +380,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
               )}
             </div>
             <button
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 sm:w-auto"
+              className={`w-full sm:w-auto ${uiTokens.button.secondaryMd}`}
               type="button"
             >
               {t('home.searchTab')}
@@ -441,7 +389,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
         )}
       </div>
 
-      <div className="rounded-lg border bg-white p-3 text-gray-900 sm:p-4">
+      <div className={uiTokens.card.surface}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold">
             {normalizedSearchQuery
@@ -571,8 +519,8 @@ export function HomeFeed({ username }: HomeFeedProps) {
                   isEntryUpdatePending: updateEntryMutation.isPending,
                   isEntryHidePending: hideEntryMutation.isPending,
                   isEntryToggleMutePending: toggleEntryMuteMutation.isPending,
-                  isReplyPending: addEntryMutation.isPending,
-                  isAddEntryPending: addEntryMutation.isPending,
+                  isReplyPending: createEntryMutation.isPending,
+                  isAddEntryPending: createEntryMutation.isPending,
                 }}
                 actions={{
                   onStartEdit: () => threadActions.startEditThread(thread),
@@ -638,7 +586,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
                     if (!body) {
                       return
                     }
-                    addEntryMutation.mutate({
+                    createEntryMutation.mutate({
                       threadId: thread.id,
                       body,
                       parentEntryId: entryId,
@@ -650,7 +598,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
                     if (!body) {
                       return
                     }
-                    addEntryMutation.mutate({ threadId: thread.id, body })
+                    createEntryMutation.mutate({ threadId: thread.id, body })
                   },
                 }}
                 helpers={{

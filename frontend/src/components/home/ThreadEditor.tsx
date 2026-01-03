@@ -1,6 +1,8 @@
 import type { FormEvent } from 'react'
 import type { CategorySummary } from '../../lib/api'
 import { CategoryInlineCreator } from '../CategoryInlineCreator'
+import { AutosizeTextarea } from '../common/AutosizeTextarea'
+import { uiTokens } from '../../lib/uiTokens'
 
 type ThreadEditorLabels = {
   save: string
@@ -22,7 +24,7 @@ type ThreadEditorProps = {
   isAddingCategory: boolean
   isCreateCategoryPending: boolean
   isSaving: boolean
-  buttonTextClass?: string
+  buttonSize?: 'sm' | 'md'
   onToggleCategory: (name: string) => void
   onCategoryInputChange: (value: string) => void
   onCategoryOpen: () => void
@@ -44,7 +46,7 @@ export function ThreadEditor({
   isAddingCategory,
   isCreateCategoryPending,
   isSaving,
-  buttonTextClass = 'text-xs',
+  buttonSize = 'sm',
   onToggleCategory,
   onCategoryInputChange,
   onCategoryOpen,
@@ -57,6 +59,10 @@ export function ThreadEditor({
   const availableCategories = categories.filter(
     (category) => !selectedCategories.includes(category.name),
   )
+  const primaryButtonClass =
+    buttonSize === 'md' ? uiTokens.button.primaryMd : uiTokens.button.primarySm
+  const secondaryButtonClass =
+    buttonSize === 'md' ? uiTokens.button.secondaryMd : uiTokens.button.secondarySm
 
   return (
     <form
@@ -69,13 +75,12 @@ export function ThreadEditor({
         onSave()
       }}
     >
-      <textarea
+      <AutosizeTextarea
         className="min-h-[96px] w-full resize-none overflow-y-hidden rounded-md border border-gray-300 px-3 py-2 text-sm"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onInput={handleTextareaInput}
-        data-autoresize="true"
-        ref={(element) => resizeTextarea(element)}
+        onChange={onChange}
+        handleTextareaInput={handleTextareaInput}
+        resizeTextarea={resizeTextarea}
       />
       <div className="mt-4 py-2">
         <div className="space-y-2">
@@ -109,17 +114,17 @@ export function ThreadEditor({
       </div>
       <div className="flex items-center gap-2">
         <button
-        className={`rounded-md bg-gray-900 px-3 py-1.5 font-semibold text-white ${buttonTextClass}`}
-        type="submit"
-        disabled={isSaving}
-      >
-        {isSaving ? labels.saving ?? labels.save : labels.save}
-      </button>
-      <button
-        className={`rounded-md border border-gray-300 px-3 py-1.5 text-gray-700 ${buttonTextClass}`}
-        type="button"
-        onClick={onCancel}
-      >
+          className={primaryButtonClass}
+          type="submit"
+          disabled={isSaving}
+        >
+          {isSaving ? labels.saving ?? labels.save : labels.save}
+        </button>
+        <button
+          className={secondaryButtonClass}
+          type="button"
+          onClick={onCancel}
+        >
           {labels.cancel}
         </button>
       </div>

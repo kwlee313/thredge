@@ -1,4 +1,6 @@
 import type { FormEvent } from 'react'
+import { AutosizeTextarea } from '../common/AutosizeTextarea'
+import { uiTokens } from '../../lib/uiTokens'
 
 type EntryEditorProps = {
   value: string
@@ -35,24 +37,23 @@ export function EntryEditor({
         onSave()
       }}
     >
-      <textarea
+      <AutosizeTextarea
         className="min-h-[72px] w-full resize-none overflow-y-hidden rounded-md border border-gray-300 px-3 py-2 text-sm"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onInput={handleTextareaInput}
-        data-autoresize="true"
-        ref={(element) => resizeTextarea(element)}
+        onChange={onChange}
+        handleTextareaInput={handleTextareaInput}
+        resizeTextarea={resizeTextarea}
       />
       <div className="flex items-center gap-2">
         <button
-          className="rounded-md bg-gray-900 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white"
+          className={uiTokens.button.primaryXs}
           type="submit"
           disabled={isSaving}
         >
           {labels.save}
         </button>
         <button
-          className="rounded-md border border-gray-300 px-2 py-1 text-[10px] text-gray-700"
+          className={uiTokens.button.secondaryXs}
           type="button"
           onClick={onCancel}
         >

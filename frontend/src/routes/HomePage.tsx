@@ -6,6 +6,7 @@ import { login } from '../lib/api'
 import { HomeFeed } from '../components/home/HomeFeed'
 import type { AppOutletContext } from '../App'
 import { queryKeys } from '../lib/queryKeys'
+import { uiTokens } from '../lib/uiTokens'
 
 export function HomePage() {
   const { t } = useTranslation()
@@ -26,7 +27,7 @@ export function HomePage() {
   return (
     <div className="space-y-2 sm:space-y-3">
       {!authQuery.isSuccess && (
-        <div className="rounded-lg border bg-white p-3 text-gray-900 sm:p-4">
+        <div className={uiTokens.card.surface}>
           <div className="text-sm font-semibold">{t('home.loginTitle')}</div>
           <form
             className="mt-2 space-y-2 sm:mt-3 sm:space-y-3"
@@ -55,7 +56,7 @@ export function HomePage() {
               />
             </label>
             <button
-              className="w-full rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white"
+              className={`w-full ${uiTokens.button.primaryMd}`}
               type="submit"
               disabled={loginMutation.isPending}
             >

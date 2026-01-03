@@ -1,7 +1,8 @@
 package com.thredge.backend.api
 
-import com.thredge.backend.domain.EntryEntity
-import com.thredge.backend.domain.EntryRepository
+import com.thredge.backend.domain.entity.EntryEntity
+import com.thredge.backend.domain.repository.EntryRepository
+import com.thredge.backend.domain.repository.ThreadRepository
 import java.time.Instant
 import java.util.UUID
 import org.springframework.http.HttpStatus
@@ -21,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException
 @RequestMapping("/api/entries")
 class EntryController(
     private val entryRepository: EntryRepository,
+    private val threadRepository: ThreadRepository,
 ) {
     data class EntryUpdateRequest(
         val body: String? = null,
@@ -86,6 +88,7 @@ class EntryController(
             entry.body = request.body.trim()
         }
         val saved = entryRepository.save(entry)
+        bumpThreadActivity(saved.thread?.id)
         return EntryDetail(
             id = saved.id.toString(),
             body = saved.body,
@@ -103,7 +106,8 @@ class EntryController(
         val ownerUsername = requireUsername(authentication)
         val entry = findEntry(id, ownerUsername)
         entry.isHidden = true
-        entryRepository.save(entry)
+        val saved = entryRepository.save(entry)
+        bumpThreadActivity(saved.thread?.id)
         return mapOf("status" to "ok")
     }
 
@@ -116,6 +120,7 @@ class EntryController(
         val entry = findEntry(id, ownerUsername, includeHidden = true)
         entry.isHidden = false
         val saved = entryRepository.save(entry)
+        bumpThreadActivity(saved.thread?.id)
         return EntryDetail(
             id = saved.id.toString(),
             body = saved.body,
@@ -130,13 +135,26 @@ class EntryController(
         ownerUsername: String,
         includeHidden: Boolean = false,
     ): EntryEntity {
+        val uuid =
+            runCatching { UUID.fromString(id) }.getOrElse {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid entry id.")
+            }
         val entry =
-            entryRepository.findByIdAndThreadOwnerUsername(UUID.fromString(id), ownerUsername)
+            entryRepository.findByIdAndThreadOwnerUsername(uuid, ownerUsername)
                 ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Entry not found.")
         if (entry.isHidden && !includeHidden) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Entry not found.")
         }
         return entry
+    }
+
+    private fun bumpThreadActivity(threadId: UUID?) {
+        if (threadId == null) {
+            return
+        }
+        val thread = threadRepository.findById(threadId).orElse(null) ?: return
+        thread.lastActivityAt = Instant.now()
+        threadRepository.save(thread)
     }
 
     private fun requireUsername(authentication: Authentication?): String {

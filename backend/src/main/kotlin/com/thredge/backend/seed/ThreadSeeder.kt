@@ -1,7 +1,7 @@
 package com.thredge.backend.seed
 
-import com.thredge.backend.domain.ThreadEntity
-import com.thredge.backend.domain.ThreadRepository
+import com.thredge.backend.domain.entity.ThreadEntity
+import com.thredge.backend.domain.repository.ThreadRepository
 import java.time.Instant
 import org.springframework.boot.CommandLineRunner
 import org.springframework.context.annotation.Profile

@@ -1,5 +1,7 @@
-package com.thredge.backend.domain
+package com.thredge.backend.domain.repository
 
+import com.thredge.backend.domain.entity.EntryEntity
+import com.thredge.backend.domain.entity.ThreadEntity
 import java.util.UUID
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query

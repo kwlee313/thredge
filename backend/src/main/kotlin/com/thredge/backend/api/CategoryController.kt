@@ -1,8 +1,8 @@
 package com.thredge.backend.api
 
-import com.thredge.backend.domain.CategoryEntity
-import com.thredge.backend.domain.CategoryRepository
-import com.thredge.backend.domain.ThreadRepository
+import com.thredge.backend.domain.entity.CategoryEntity
+import com.thredge.backend.domain.repository.CategoryRepository
+import com.thredge.backend.domain.repository.ThreadRepository
 import java.util.UUID
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping

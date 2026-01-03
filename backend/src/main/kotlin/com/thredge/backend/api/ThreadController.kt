@@ -1,11 +1,11 @@
 package com.thredge.backend.api
 
-import com.thredge.backend.domain.CategoryEntity
-import com.thredge.backend.domain.CategoryRepository
-import com.thredge.backend.domain.EntryEntity
-import com.thredge.backend.domain.EntryRepository
-import com.thredge.backend.domain.ThreadEntity
-import com.thredge.backend.domain.ThreadRepository
+import com.thredge.backend.domain.entity.CategoryEntity
+import com.thredge.backend.domain.entity.EntryEntity
+import com.thredge.backend.domain.entity.ThreadEntity
+import com.thredge.backend.domain.repository.CategoryRepository
+import com.thredge.backend.domain.repository.EntryRepository
+import com.thredge.backend.domain.repository.ThreadRepository
 import java.time.Instant
 import java.util.UUID
 import org.springframework.http.HttpStatus

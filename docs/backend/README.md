@@ -15,6 +15,7 @@
 - api/dto에 요청/응답 정의
 - 목록 응답은 `PageResponse<T>` 사용
 - 입력 검증은 Bean Validation 애노테이션으로 일관 처리
+  - 페이징은 `page/size`와 `hasNext` 기반으로 처리
 
 ## 매퍼
 - Thread/Category 매핑은 `api/mapper`에 위치

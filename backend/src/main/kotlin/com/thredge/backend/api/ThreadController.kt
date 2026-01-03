@@ -9,6 +9,7 @@ import com.thredge.backend.api.dto.ThreadSummary
 import com.thredge.backend.api.dto.ThreadUpdateRequest
 import com.thredge.backend.service.ThreadService
 import com.thredge.backend.support.AuthSupport
+import com.thredge.backend.support.PagingDefaults
 import jakarta.validation.Valid
 import com.thredge.backend.support.ValidationMessages
 import jakarta.validation.constraints.NotBlank
@@ -36,8 +37,8 @@ class ThreadController(
 ) {
     @GetMapping
     fun list(
-        @RequestParam(defaultValue = "0") @Min(0) page: Int,
-        @RequestParam(defaultValue = "20") @Min(1) @Max(100) size: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.DEFAULT_PAGE}") @Min(0) page: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.THREAD_DEFAULT_SIZE}") @Min(1) @Max(PagingDefaults.THREAD_MAX_SIZE) size: Int,
         authentication: Authentication?,
     ): PageResponse<ThreadSummary> {
         val ownerUsername = authSupport.requireUsername(authentication)
@@ -46,8 +47,8 @@ class ThreadController(
 
     @GetMapping("/feed")
     fun feed(
-        @RequestParam(defaultValue = "0") @Min(0) page: Int,
-        @RequestParam(defaultValue = "20") @Min(1) @Max(100) size: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.DEFAULT_PAGE}") @Min(0) page: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.THREAD_DEFAULT_SIZE}") @Min(1) @Max(PagingDefaults.THREAD_MAX_SIZE) size: Int,
         authentication: Authentication?,
     ): PageResponse<ThreadDetail> {
         val ownerUsername = authSupport.requireUsername(authentication)
@@ -57,8 +58,8 @@ class ThreadController(
     @GetMapping("/search")
     fun searchThreads(
         @RequestParam @NotBlank(message = ValidationMessages.QUERY_REQUIRED) query: String,
-        @RequestParam(defaultValue = "0") @Min(0) page: Int,
-        @RequestParam(defaultValue = "20") @Min(1) @Max(100) size: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.DEFAULT_PAGE}") @Min(0) page: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.THREAD_DEFAULT_SIZE}") @Min(1) @Max(PagingDefaults.THREAD_MAX_SIZE) size: Int,
         authentication: Authentication?,
     ): PageResponse<ThreadDetail> {
         val ownerUsername = authSupport.requireUsername(authentication)
@@ -67,8 +68,8 @@ class ThreadController(
 
     @GetMapping("/hidden")
     fun listHidden(
-        @RequestParam(defaultValue = "0") @Min(0) page: Int,
-        @RequestParam(defaultValue = "20") @Min(1) @Max(100) size: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.DEFAULT_PAGE}") @Min(0) page: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.THREAD_DEFAULT_SIZE}") @Min(1) @Max(PagingDefaults.THREAD_MAX_SIZE) size: Int,
         authentication: Authentication?,
     ): PageResponse<ThreadSummary> {
         val ownerUsername = authSupport.requireUsername(authentication)
@@ -78,8 +79,8 @@ class ThreadController(
     @GetMapping("/hidden/search")
     fun searchHiddenThreads(
         @RequestParam @NotBlank(message = ValidationMessages.QUERY_REQUIRED) query: String,
-        @RequestParam(defaultValue = "0") @Min(0) page: Int,
-        @RequestParam(defaultValue = "20") @Min(1) @Max(100) size: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.DEFAULT_PAGE}") @Min(0) page: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.THREAD_DEFAULT_SIZE}") @Min(1) @Max(PagingDefaults.THREAD_MAX_SIZE) size: Int,
         authentication: Authentication?,
     ): PageResponse<ThreadSummary> {
         val ownerUsername = authSupport.requireUsername(authentication)

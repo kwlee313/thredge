@@ -21,15 +21,17 @@ class EntryService(
     private val threadRepository: ThreadRepository,
     private val threadMapper: ThreadMapper,
 ) {
+    @Transactional(readOnly = true)
     fun listHidden(ownerUsername: String, pageable: Pageable): PageResponse<EntryDetail> {
-        val page = entryRepository.findByThreadOwnerUsernameAndIsHiddenTrueOrderByCreatedAtAsc(ownerUsername, pageable)
-        return PageResponse.from(page.map(threadMapper::toEntryDetail))
+        val slice = entryRepository.findByThreadOwnerUsernameAndIsHiddenTrueOrderByCreatedAtAsc(ownerUsername, pageable)
+        return PageResponse.from(slice.map(threadMapper::toEntryDetail))
     }
 
+    @Transactional(readOnly = true)
     fun searchHidden(ownerUsername: String, query: String, pageable: Pageable): PageResponse<EntryDetail> {
         val trimmedQuery = query.trim()
-        val page = entryRepository.searchHiddenEntries(ownerUsername, trimmedQuery, pageable)
-        return PageResponse.from(page.map(threadMapper::toEntryDetail))
+        val slice = entryRepository.searchHiddenEntries(ownerUsername, trimmedQuery, pageable)
+        return PageResponse.from(slice.map(threadMapper::toEntryDetail))
     }
 
     @Transactional

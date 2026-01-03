@@ -5,6 +5,7 @@ import com.thredge.backend.api.dto.PageResponse
 import com.thredge.backend.api.dto.EntryUpdateRequest
 import com.thredge.backend.service.EntryService
 import com.thredge.backend.support.AuthSupport
+import com.thredge.backend.support.PagingDefaults
 import jakarta.validation.Valid
 import com.thredge.backend.support.ValidationMessages
 import jakarta.validation.constraints.NotBlank
@@ -31,8 +32,8 @@ class EntryController(
 ) {
     @GetMapping("/hidden")
     fun listHidden(
-        @RequestParam(defaultValue = "0") @Min(0) page: Int,
-        @RequestParam(defaultValue = "50") @Min(1) @Max(200) size: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.DEFAULT_PAGE}") @Min(0) page: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.ENTRY_DEFAULT_SIZE}") @Min(1) @Max(PagingDefaults.ENTRY_MAX_SIZE) size: Int,
         authentication: Authentication?,
     ): PageResponse<EntryDetail> {
         val ownerUsername = authSupport.requireUsername(authentication)
@@ -42,8 +43,8 @@ class EntryController(
     @GetMapping("/hidden/search")
     fun searchHiddenEntries(
         @RequestParam @NotBlank(message = ValidationMessages.QUERY_REQUIRED) query: String,
-        @RequestParam(defaultValue = "0") @Min(0) page: Int,
-        @RequestParam(defaultValue = "50") @Min(1) @Max(200) size: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.DEFAULT_PAGE}") @Min(0) page: Int,
+        @RequestParam(defaultValue = "${PagingDefaults.ENTRY_DEFAULT_SIZE}") @Min(1) @Max(PagingDefaults.ENTRY_MAX_SIZE) size: Int,
         authentication: Authentication?,
     ): PageResponse<EntryDetail> {
         val ownerUsername = authSupport.requireUsername(authentication)

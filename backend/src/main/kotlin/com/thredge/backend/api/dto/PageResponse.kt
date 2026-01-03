@@ -1,22 +1,20 @@
 package com.thredge.backend.api.dto
 
-import org.springframework.data.domain.Page
+import org.springframework.data.domain.Slice
 
 data class PageResponse<T>(
     val items: List<T>,
     val page: Int,
     val size: Int,
-    val totalElements: Long,
-    val totalPages: Int,
+    val hasNext: Boolean,
 ) {
     companion object {
-        fun <T> from(page: Page<T>): PageResponse<T> =
+        fun <T> from(slice: Slice<T>): PageResponse<T> =
             PageResponse(
-                items = page.content,
-                page = page.number,
-                size = page.size,
-                totalElements = page.totalElements,
-                totalPages = page.totalPages,
+                items = slice.content,
+                page = slice.number,
+                size = slice.size,
+                hasNext = slice.hasNext(),
             )
     }
 }

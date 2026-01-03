@@ -30,51 +30,54 @@ class ThreadService(
     private val categoryRepository: CategoryRepository,
     private val threadMapper: ThreadMapper,
 ) {
+    @Transactional(readOnly = true)
     fun list(ownerUsername: String, pageable: Pageable): PageResponse<ThreadSummary> {
-        val page = threadRepository.findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
+        val slice = threadRepository.findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
             ownerUsername,
             pageable,
         )
-        return PageResponse.from(page.map(threadMapper::toThreadSummary))
+        return PageResponse.from(slice.map(threadMapper::toThreadSummary))
     }
 
+    @Transactional(readOnly = true)
     fun feed(ownerUsername: String, pageable: Pageable): PageResponse<ThreadDetail> {
-        val page = threadRepository.findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
+        val slice = threadRepository.findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
             ownerUsername,
             pageable,
         )
-        val details = buildThreadDetails(page.content)
+        val details = buildThreadDetails(slice.content)
         return PageResponse(
             items = details,
-            page = page.number,
-            size = page.size,
-            totalElements = page.totalElements,
-            totalPages = page.totalPages,
+            page = slice.number,
+            size = slice.size,
+            hasNext = slice.hasNext(),
         )
     }
 
+    @Transactional(readOnly = true)
     fun searchThreads(ownerUsername: String, query: String, pageable: Pageable): PageResponse<ThreadDetail> {
         val trimmedQuery = query.trim()
-        val page = threadRepository.searchVisibleThreads(ownerUsername, trimmedQuery, pageable)
-        val details = buildThreadDetails(page.content)
+        val slice = threadRepository.searchVisibleThreads(ownerUsername, trimmedQuery, pageable)
+        val details = buildThreadDetails(slice.content)
         return PageResponse(
             items = details,
-            page = page.number,
-            size = page.size,
-            totalElements = page.totalElements,
-            totalPages = page.totalPages,
+            page = slice.number,
+            size = slice.size,
+            hasNext = slice.hasNext(),
         )
     }
 
+    @Transactional(readOnly = true)
     fun listHidden(ownerUsername: String, pageable: Pageable): PageResponse<ThreadSummary> {
-        val page = threadRepository.findByOwnerUsernameAndIsHiddenTrueOrderByLastActivityAtDesc(ownerUsername, pageable)
-        return PageResponse.from(page.map(threadMapper::toThreadSummary))
+        val slice = threadRepository.findByOwnerUsernameAndIsHiddenTrueOrderByLastActivityAtDesc(ownerUsername, pageable)
+        return PageResponse.from(slice.map(threadMapper::toThreadSummary))
     }
 
+    @Transactional(readOnly = true)
     fun searchHidden(ownerUsername: String, query: String, pageable: Pageable): PageResponse<ThreadSummary> {
         val trimmedQuery = query.trim()
-        val page = threadRepository.searchHiddenThreads(ownerUsername, trimmedQuery, pageable)
-        return PageResponse.from(page.map(threadMapper::toThreadSummary))
+        val slice = threadRepository.searchHiddenThreads(ownerUsername, trimmedQuery, pageable)
+        return PageResponse.from(slice.map(threadMapper::toThreadSummary))
     }
 
     fun createThread(ownerUsername: String, request: ThreadCreateRequest): ThreadSummary {
@@ -93,6 +96,7 @@ class ThreadService(
         return threadMapper.toThreadSummary(saved)
     }
 
+    @Transactional(readOnly = true)
     fun getThread(ownerUsername: String, id: String, includeHidden: Boolean): ThreadDetail {
         val thread = findThread(id, ownerUsername, includeHidden = includeHidden)
         return buildThreadDetail(thread)

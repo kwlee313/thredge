@@ -2,8 +2,8 @@ package com.thredge.backend.domain.repository
 
 import com.thredge.backend.domain.entity.EntryEntity
 import java.util.UUID
-import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Slice
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
@@ -15,7 +15,7 @@ interface EntryRepository : JpaRepository<EntryEntity, UUID> {
     fun findByThreadOwnerUsernameAndIsHiddenTrueOrderByCreatedAtAsc(
         ownerUsername: String,
         pageable: Pageable,
-    ): Page<EntryEntity>
+    ): Slice<EntryEntity>
     fun findByIdAndThreadOwnerUsername(id: UUID, ownerUsername: String): EntryEntity?
 
     @Query(
@@ -31,5 +31,5 @@ interface EntryRepository : JpaRepository<EntryEntity, UUID> {
         @Param("ownerUsername") ownerUsername: String,
         @Param("query") query: String,
         pageable: Pageable,
-    ): Page<EntryEntity>
+    ): Slice<EntryEntity>
 }

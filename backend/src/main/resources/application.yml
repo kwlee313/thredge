@@ -13,6 +13,12 @@ spring:
 
 server:
   port: ${SERVER_PORT:28080}
+  servlet:
+    session:
+      timeout: 7d
+      cookie:
+        name: THREDGE_SESSION
+        max-age: 7d
 
 app:
   cors:

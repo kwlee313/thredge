@@ -23,6 +23,8 @@ infra/db/backups/*.gz
 # Local postgres data (bind mount)
 data/postgres/*
 !data/postgres/.gitkeep
+data/postgres-thredge/*
+!data/postgres-thredge/.gitkeep
 
 # Frontend
 frontend/node_modules/

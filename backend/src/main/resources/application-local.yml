@@ -1,5 +1,7 @@
 spring:
+  jpa:
+    hibernate:
+      ddl-auto: update
   session:
     jdbc:
       initialize-schema: always
-

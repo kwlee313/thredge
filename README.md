@@ -1,11 +1,13 @@
 # thredge
 
-CEFR 기반 개인화 언어학습 앱(프론트: React, 백: Kotlin/Spring) 프로젝트입니다.
-최소 한국어/영어/터키어를 지원하는 다국어 확장형 구조를 목표로 합니다.
+하나의 아이디어를 하나의 스레드로 만들고, 댓글을 시간 순서로 쌓아가며
+사고를 발전시키는 완전 개인용(thread-first) 사고 로그 앱입니다.
+Notion 같은 거대 올인원 툴을 지양하고, UI/기능을 최소화해
+생각의 시간성, 당시의 완성된 문장, 맥락(context) 보존에 집중합니다.
 
 ## 문서
-- 작업 계획: `docs/archive/1.언어학습앱_작업_계획.md`
-- 기술 스택: `docs/archive/2.언어학습앱_기술_스택.md`
+- 작업 계획: `docs/archive/1.THREDGE_IMPLEMENTATION_PLAN.md`
+- 기술 스택: `docs/archive/2.THREDGE_TECH_STACK.md`
 - 로컬 개발: `docs/DEV.md`
 - OpenAPI: `docs/OPENAPI.md`
 

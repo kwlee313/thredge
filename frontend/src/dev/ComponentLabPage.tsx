@@ -13,7 +13,6 @@ export function ComponentLabPage() {
   const [editingThreadBody, setEditingThreadBody] = useState('Example thread body')
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [categoryInput, setCategoryInput] = useState('')
-  const [isAddingCategory, setIsAddingCategory] = useState(false)
   const { handleTextareaInput, resizeTextarea } = useTextareaAutosize({
     deps: [entryBody, replyDraft, editingThreadBody],
   })
@@ -22,6 +21,7 @@ export function ComponentLabPage() {
     id: 'entry-preview',
     body: entryBody,
     parentEntryId: null,
+    orderIndex: 1000,
     createdAt: new Date().toISOString(),
     threadId: 'thread-preview',
   }
@@ -40,10 +40,11 @@ export function ComponentLabPage() {
           data={{
             entry,
             depth: 1,
-            themeEntryClass: 'border-gray-100 bg-gray-50',
+            themeEntryClass: 'border-[var(--theme-border)] bg-[var(--theme-soft)]',
             highlightQuery: '',
           }}
           ui={{
+            showMoveControls: false,
             isEditing: isEditingEntry,
             editingBody: entryBody,
             isReplyActive,
@@ -51,7 +52,12 @@ export function ComponentLabPage() {
             isEntryUpdatePending: false,
             isEntryHidePending: false,
             isEntryToggleMutePending: false,
+            isEntryMovePending: false,
+            isMoveUpDisabled: true,
+            isMoveDownDisabled: true,
             isReplyPending: false,
+            replyComposerFocusId: null,
+            onReplyComposerFocusHandled: () => {},
           }}
           actions={{
             onEditStart: () => setIsEditingEntry(true),
@@ -60,6 +66,8 @@ export function ComponentLabPage() {
             onEditSave: () => setIsEditingEntry(false),
             onToggleMute: setEntryBody,
             onHide: () => {},
+            onMoveUp: () => {},
+            onMoveDown: () => {},
             onReplyStart: () => setIsReplyActive(true),
             onReplyChange: setReplyDraft,
             onReplyCancel: () => setIsReplyActive(false),
@@ -82,7 +90,6 @@ export function ComponentLabPage() {
           categories={categories}
           selectedCategories={selectedCategories}
           editingCategoryInput={categoryInput}
-          isAddingCategory={isAddingCategory}
           isCreateCategoryPending={false}
           isSaving={false}
           onToggleCategory={(name) =>
@@ -91,10 +98,8 @@ export function ComponentLabPage() {
             )
           }
           onCategoryInputChange={setCategoryInput}
-          onCategoryOpen={() => setIsAddingCategory(true)}
           onCategoryCancel={() => {
             setCategoryInput('')
-            setIsAddingCategory(false)
           }}
           onCategorySubmit={() => {
             if (categoryInput.trim()) {
@@ -105,9 +110,10 @@ export function ComponentLabPage() {
           labels={{
             save: 'Save',
             cancel: 'Cancel',
-            categoryPlaceholder: 'New category',
+            categorySearchPlaceholder: 'Find category',
             addCategory: 'Add',
             cancelCategory: 'Cancel',
+            loadMore: 'Load more',
           }}
           handleTextareaInput={handleTextareaInput}
           resizeTextarea={resizeTextarea}

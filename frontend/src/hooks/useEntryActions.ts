@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { EntryDetail } from '../lib/api'
-import { addEntry } from '../lib/api'
+import type { EntryDetail, EntryMoveDirection } from '../lib/api'
+import { addEntry, moveEntry } from '../lib/api'
 import { queryKeys } from '../lib/queryKeys'
+import { updateEntryPositionInFeed, updateEntryPositionInThreadDetail } from '../lib/threadCache'
 
 type InvalidateTarget = 'feed' | 'search' | 'thread'
 
@@ -15,6 +16,12 @@ type CreateEntryVariables = {
   threadId: string
   body: string
   parentEntryId?: string
+}
+
+type MoveEntryVariables = {
+  entryId: string
+  direction: EntryMoveDirection
+  threadId?: string
 }
 
 type EntryActionsOptions = {
@@ -66,7 +73,20 @@ export const useEntryActions = (options: EntryActionsOptions = {}) => {
     },
   })
 
+  const moveEntryMutation = useMutation({
+    mutationFn: ({ entryId, direction }: MoveEntryVariables) => moveEntry(entryId, direction),
+    onSuccess: async (moved, variables) => {
+      const resolvedThreadId = variables.threadId ?? options.threadId ?? moved.threadId ?? undefined
+      updateEntryPositionInFeed(queryClient, moved)
+      if (resolvedThreadId) {
+        updateEntryPositionInThreadDetail(queryClient, resolvedThreadId, moved)
+      }
+      await invalidateEntryKeys(resolvedThreadId)
+    },
+  })
+
   return {
     createEntryMutation,
+    moveEntryMutation,
   }
 }

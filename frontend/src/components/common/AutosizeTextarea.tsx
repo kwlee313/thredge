@@ -7,6 +7,7 @@ type AutosizeTextareaProps = {
   className: string
   handleTextareaInput: (event: FormEvent<HTMLTextAreaElement>) => void
   resizeTextarea: (element: HTMLTextAreaElement | null) => void
+  inputRef?: (element: HTMLTextAreaElement | null) => void
 }
 
 export function AutosizeTextarea({
@@ -16,6 +17,7 @@ export function AutosizeTextarea({
   className,
   handleTextareaInput,
   resizeTextarea,
+  inputRef,
 }: AutosizeTextareaProps) {
   return (
     <textarea
@@ -25,7 +27,10 @@ export function AutosizeTextarea({
       onChange={(event) => onChange(event.target.value)}
       onInput={handleTextareaInput}
       data-autoresize="true"
-      ref={(element) => resizeTextarea(element)}
+      ref={(element) => {
+        resizeTextarea(element)
+        inputRef?.(element)
+      }}
     />
   )
 }

@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next'
 import type { EntryCardActions, EntryCardData, EntryCardHelpers, EntryCardUi } from './types'
 import { highlightMatches } from '../../lib/highlightMatches'
 import { isMutedText, stripMutedText, toggleMutedText } from '../../lib/mutedText'
-import eraserIcon from '../../assets/eraser.svg'
+import eraserIcon from '../../assets/eraser.svg?raw'
 import { EntryEditor } from './EntryEditor'
 import { ReplyComposer } from './ReplyComposer'
+import { InlineIcon } from '../common/InlineIcon'
 
 type EntryCardProps = {
   data: EntryCardData
@@ -23,6 +24,7 @@ export function EntryCard({
   const { t } = useTranslation()
   const { entry, depth, themeEntryClass, highlightQuery } = data
   const {
+    showMoveControls,
     isEditing,
     editingBody,
     isReplyActive,
@@ -30,7 +32,12 @@ export function EntryCard({
     isEntryUpdatePending,
     isEntryHidePending,
     isEntryToggleMutePending,
+    isEntryMovePending,
+    isMoveUpDisabled,
+    isMoveDownDisabled,
     isReplyPending,
+    replyComposerFocusId,
+    onReplyComposerFocusHandled,
   } = ui
   const {
     onEditStart,
@@ -39,6 +46,8 @@ export function EntryCard({
     onEditSave,
     onToggleMute,
     onHide,
+    onMoveUp,
+    onMoveDown,
     onReplyStart,
     onReplyChange,
     onReplyCancel,
@@ -54,16 +63,18 @@ export function EntryCard({
     >
       <div className="absolute right-2 top-2 flex items-center gap-1">
         <button
-          className="flex h-5 w-5 items-center justify-center rounded-full border border-gray-200 text-gray-500"
+          className="flex h-5 w-5 items-center justify-center rounded-full border border-[var(--theme-border)] text-[var(--theme-ink)] hover:opacity-90"
           type="button"
           onClick={onEditStart}
           aria-label={t('common.edit')}
         >
-          <img className="h-3.5 w-3.5" src={eraserIcon} alt="" />
+          <InlineIcon svg={eraserIcon} className="[&>svg]:h-3.5 [&>svg]:w-3.5" />
         </button>
         <button
           className={`rounded-full border px-1 py-0 text-[8px] ${
-            muted ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 text-gray-400'
+            muted
+              ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-[var(--theme-on-primary)]'
+              : 'border-[var(--theme-border)] text-[var(--theme-muted)]'
           }`}
           type="button"
           onClick={() => onToggleMute(toggleMutedText(entry.body))}
@@ -73,7 +84,7 @@ export function EntryCard({
           -
         </button>
         <button
-          className="rounded-full border border-gray-200 px-1 py-0 text-[8px] text-gray-400"
+          className="rounded-full border border-[var(--theme-border)] px-1 py-0 text-[8px] text-[var(--theme-muted)] hover:opacity-80"
           type="button"
           onClick={onHide}
           disabled={isEntryHidePending}
@@ -82,15 +93,39 @@ export function EntryCard({
           ×
         </button>
       </div>
-      {depth < 3 && (
-        <button
-          className="absolute bottom-2 right-2 rounded-md border border-gray-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700"
-          type="button"
-          onClick={onReplyStart}
-        >
-          {t('common.reply')}
-        </button>
-      )}
+      <div className="absolute bottom-2 right-2 flex items-center gap-1">
+        {showMoveControls && (
+          <>
+            <button
+              className="flex h-5 w-5 items-center justify-center rounded-full border border-[var(--theme-border)] text-[10px] text-[var(--theme-ink)] disabled:cursor-not-allowed disabled:opacity-40"
+              type="button"
+              onClick={onMoveUp}
+              disabled={isEntryMovePending || isMoveUpDisabled}
+              aria-label={t('common.moveUp')}
+            >
+              ^
+            </button>
+            <button
+              className="flex h-5 w-5 items-center justify-center rounded-full border border-[var(--theme-border)] text-[10px] text-[var(--theme-ink)] disabled:cursor-not-allowed disabled:opacity-40"
+              type="button"
+              onClick={onMoveDown}
+              disabled={isEntryMovePending || isMoveDownDisabled}
+              aria-label={t('common.moveDown')}
+            >
+              v
+            </button>
+          </>
+        )}
+        {depth < 3 && (
+          <button
+            className="rounded-md border border-[var(--theme-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--theme-ink)] hover:opacity-80"
+            type="button"
+            onClick={onReplyStart}
+          >
+            {t('common.reply')}
+          </button>
+        )}
+      </div>
       {isEditing ? (
         <EntryEditor
           value={editingBody}
@@ -105,11 +140,15 @@ export function EntryCard({
       ) : (
         <>
           <div
-            className={`mb-2 text-sm ${muted ? 'text-gray-400 line-through' : 'text-gray-800'}`}
+            className={`mb-2 whitespace-pre-wrap text-sm ${
+              muted
+                ? 'text-[var(--theme-muted)] opacity-50 line-through'
+                : 'text-[var(--theme-ink)]'
+            }`}
           >
             {highlightMatches(muted ? stripMutedText(entry.body) : entry.body, highlightQuery)}
           </div>
-          <div className="absolute bottom-2 left-2 text-xs text-gray-500">
+          <div className="absolute bottom-2 left-2 text-xs text-[var(--theme-muted)] opacity-50">
             {formatDistanceToNow(new Date(entry.createdAt), {
               addSuffix: true,
             })}
@@ -127,6 +166,9 @@ export function EntryCard({
           labels={{ submit: t('common.reply'), cancel: t('common.cancel') }}
           handleTextareaInput={handleTextareaInput}
           resizeTextarea={resizeTextarea}
+          focusId={`reply:${entry.id}`}
+          activeFocusId={replyComposerFocusId}
+          onFocusHandled={onReplyComposerFocusHandled}
         />
       )}
     </div>

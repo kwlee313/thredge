@@ -15,4 +15,13 @@ class AuthSupport {
         }
         return authentication.name
     }
+
+    fun requireAdmin(authentication: Authentication?) {
+        requireUsername(authentication)
+        val isAdmin =
+            authentication?.authorities?.any { it.authority == "ROLE_ADMIN" } ?: false
+        if (!isAdmin) {
+            throw UnauthorizedException("Admin access required")
+        }
+    }
 }

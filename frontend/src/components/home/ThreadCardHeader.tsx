@@ -1,9 +1,10 @@
-import pinIcon from '../../assets/pin.svg'
-import pinFilledIcon from '../../assets/pin-filled.svg'
-import eraserIcon from '../../assets/eraser.svg'
+import pinIcon from '../../assets/pin.svg?raw'
+import pinFilledIcon from '../../assets/pin-filled.svg?raw'
+import eraserIcon from '../../assets/eraser.svg?raw'
 import type { ThreadDetail } from '../../lib/api'
 import { isMutedText } from '../../lib/mutedText'
 import { uiTokens } from '../../lib/uiTokens'
+import { InlineIcon } from '../common/InlineIcon'
 
 type ThreadCardHeaderProps = {
   thread: ThreadDetail
@@ -44,17 +45,18 @@ export function ThreadCardHeader({
       <div className="flex flex-wrap items-center gap-1.5">
         <button
           className={`flex h-5 w-5 items-center justify-center rounded-full border ${
-            thread.pinned ? 'border-gray-900 text-gray-900' : 'border-gray-200 text-gray-400'
+            thread.pinned
+              ? 'border-[var(--theme-primary)] text-[var(--theme-primary)]'
+              : 'border-[var(--theme-border)] text-[var(--theme-muted)]'
           }`}
           type="button"
           onClick={onTogglePin}
           disabled={isPinPending || isUnpinPending}
           aria-label={thread.pinned ? labels.unpin : labels.pin}
         >
-          <img
-            className="h-3.5 w-3.5"
-            src={thread.pinned ? pinFilledIcon : pinIcon}
-            alt=""
+          <InlineIcon
+            svg={thread.pinned ? pinFilledIcon : pinIcon}
+            className="[&>svg]:h-3.5 [&>svg]:w-3.5"
           />
         </button>
         {isEditing
@@ -79,18 +81,18 @@ export function ThreadCardHeader({
       </div>
       <div className="flex items-center gap-1.5">
         <button
-          className="flex h-5 w-5 items-center justify-center rounded-full border border-gray-200 text-gray-500"
+          className="flex h-5 w-5 items-center justify-center rounded-full border border-[var(--theme-border)] text-[var(--theme-ink)]"
           type="button"
           onClick={onStartEdit}
           aria-label={labels.edit}
         >
-          <img className="h-3.5 w-3.5" src={eraserIcon} alt="" />
+          <InlineIcon svg={eraserIcon} className="[&>svg]:h-3.5 [&>svg]:w-3.5" />
         </button>
         <button
           className={`rounded-full border px-1 py-0 text-[9px] ${
             isMutedText(thread.body)
-              ? 'border-gray-900 bg-gray-900 text-white'
-              : 'border-gray-200 text-gray-400'
+              ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-[var(--theme-on-primary)]'
+              : 'border-[var(--theme-border)] text-[var(--theme-muted)]'
           }`}
           type="button"
           onClick={onToggleMute}
@@ -99,7 +101,7 @@ export function ThreadCardHeader({
           -
         </button>
         <button
-          className="rounded-full border border-gray-200 px-1 py-0 text-[9px] text-gray-400"
+          className="rounded-full border border-[var(--theme-border)] px-1 py-0 text-[9px] text-[var(--theme-muted)]"
           type="button"
           onClick={onHide}
           disabled={isHidePending}

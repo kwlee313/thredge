@@ -6,6 +6,10 @@ export const queryKeys = {
   auth: {
     me: ['auth', 'me'] as const,
   },
+  admin: {
+    users: ['admin', 'users'] as const,
+    signupPolicy: ['admin', 'signup-policy'] as const,
+  },
   threads: {
     feed: ['threads', 'feed'] as const,
     feedFiltered: (date?: string | null, categoryIds?: string[]) =>

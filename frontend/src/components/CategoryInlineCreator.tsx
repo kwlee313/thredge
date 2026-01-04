@@ -49,7 +49,7 @@ export function CategoryInlineCreator({
   if (!isOpen) {
     return (
       <button
-        className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-300 text-xs font-semibold text-gray-700 transition-all"
+        className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--theme-border)] text-xs font-semibold text-[var(--theme-ink)] transition-all hover:opacity-80"
         type="button"
         onClick={onOpen}
       >
@@ -61,7 +61,7 @@ export function CategoryInlineCreator({
   return (
     <div className="flex items-center gap-1.5">
       <input
-        className="w-44 rounded-full border border-gray-300 px-3 py-1 text-xs transition-all"
+        className="w-44 rounded-full border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-1 text-xs text-[var(--theme-ink)] placeholder:text-[var(--theme-muted)] placeholder:opacity-60 transition-all"
         placeholder={placeholder}
         value={value}
         onChange={(event) => onValueChange(event.target.value)}
@@ -70,7 +70,7 @@ export function CategoryInlineCreator({
         disabled={disabled}
       />
       <button
-        className="flex h-7 items-center justify-center rounded-full border border-gray-300 px-2 text-[11px] font-semibold text-gray-700 transition-all"
+        className="flex h-7 items-center justify-center rounded-full border border-[var(--theme-border)] px-2 text-[11px] font-semibold text-[var(--theme-ink)] transition-all hover:opacity-80"
         type="button"
         onClick={onSubmit}
         disabled={disabled}
@@ -78,7 +78,7 @@ export function CategoryInlineCreator({
         {addLabel}
       </button>
       <button
-        className="flex h-7 items-center justify-center rounded-full border border-gray-300 px-2 text-[11px] font-semibold text-gray-700 transition-all"
+        className="flex h-7 items-center justify-center rounded-full border border-[var(--theme-border)] px-2 text-[11px] font-semibold text-[var(--theme-ink)] transition-all hover:opacity-80"
         type="button"
         onClick={onCancel}
         disabled={disabled}

@@ -4,6 +4,7 @@ import { HomePage } from './routes/HomePage'
 import { SettingsPage } from './routes/SettingsPage'
 import { ThreadDetailPage } from './routes/ThreadDetailPage'
 import { ArchivePage } from './routes/ArchivePage'
+import { AdminPage } from './routes/AdminPage'
 import { ComponentLabPage } from './dev/ComponentLabPage'
 
 export const router = createBrowserRouter([
@@ -13,6 +14,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <HomePage /> },
       { path: 'settings', element: <SettingsPage /> },
+      { path: 'admin', element: <AdminPage /> },
       { path: 'threads/:id', element: <ThreadDetailPage /> },
       { path: 'archive', element: <ArchivePage /> },
       ...(import.meta.env.DEV ? [{ path: '__lab', element: <ComponentLabPage /> }] : []),

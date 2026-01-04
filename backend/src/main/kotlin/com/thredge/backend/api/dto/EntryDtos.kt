@@ -11,11 +11,22 @@ data class EntryUpdateRequest(
     val body: String? = null,
 )
 
+enum class EntryMoveDirection {
+    UP,
+    DOWN,
+}
+
+data class EntryMoveRequest(
+    @field:jakarta.validation.constraints.NotNull
+    val direction: EntryMoveDirection,
+)
+
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class EntryDetail(
     val id: String,
     val body: String,
     val parentEntryId: String?,
+    val orderIndex: Long,
     val createdAt: Instant,
     // Thread detail responses omit this field to keep payloads small.
     val threadId: String?,

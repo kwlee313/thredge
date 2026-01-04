@@ -1,7 +1,14 @@
 import { API_BASE_URL } from './env'
 
 export type BackendHealth = { status: string }
-export type AuthUser = { username: string }
+export type AuthUser = { username: string; role: 'USER' | 'ADMIN' }
+export type AdminUser = {
+  id: string
+  username: string
+  role: 'USER' | 'ADMIN'
+  createdAt: string
+}
+export type SignupPolicy = { enabled: boolean }
 export type ThreadSummary = {
   id: string
   title: string
@@ -13,9 +20,11 @@ export type EntryDetail = {
   id: string
   body: string
   parentEntryId: string | null
+  orderIndex: number
   createdAt: string
   threadId?: string | null
 }
+export type EntryMoveDirection = 'UP' | 'DOWN'
 export type CategorySummary = {
   id: string
   name: string
@@ -94,10 +103,48 @@ export async function login(username: string, password: string): Promise<AuthUse
   }, 'Login failed')
 }
 
+export async function signup(username: string, password: string): Promise<AuthUser> {
+  return requestJson('/api/auth/signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  }, 'Signup failed')
+}
+
+export async function fetchAdminUsers(): Promise<AdminUser[]> {
+  return requestJson('/api/admin/users', {}, 'Admin users fetch failed')
+}
+
+export async function deleteAdminUser(id: string): Promise<void> {
+  return requestEmpty(`/api/admin/users/${id}`, {
+    method: 'DELETE',
+  }, 'Admin user delete failed')
+}
+
+export async function fetchSignupPolicy(): Promise<SignupPolicy> {
+  return requestJson('/api/admin/signup-policy', {}, 'Signup policy fetch failed')
+}
+
+export async function updateSignupPolicy(enabled: boolean): Promise<SignupPolicy> {
+  return requestJson('/api/admin/signup-policy', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  }, 'Signup policy update failed')
+}
+
 export async function logout(): Promise<void> {
   return requestEmpty('/api/auth/logout', {
     method: 'POST',
   }, 'Logout failed')
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return requestEmpty('/api/auth/password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  }, 'Password change failed')
 }
 
 export async function fetchThreadsPage(
@@ -199,6 +246,17 @@ export async function updateEntry(id: string, body: string): Promise<EntryDetail
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ body }),
   }, 'Entry update failed')
+}
+
+export async function moveEntry(
+  id: string,
+  direction: EntryMoveDirection,
+): Promise<EntryDetail> {
+  return requestJson(`/api/entries/${id}/move`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ direction }),
+  }, 'Entry move failed')
 }
 
 export async function hideEntry(id: string): Promise<void> {

@@ -43,6 +43,7 @@ class ThreadMapper {
             id = entry.id.toString(),
             body = entry.body,
             parentEntryId = entry.parentEntryId?.toString(),
+            orderIndex = entry.orderIndex,
             createdAt = entry.createdAt,
             threadId = threadId?.toString(),
         )

@@ -81,25 +81,31 @@ export function ArchivePage() {
           onChange={(event) => threads.setFilter(event.target.value)}
         />
         {threads.isSearching && (
-          <div className="mt-1 text-xs text-gray-500">{t('archive.searching')}</div>
+        <div className="mt-1 text-xs text-[var(--theme-muted)]">
+          {t('archive.searching')}
+        </div>
         )}
         <div className="mt-2 space-y-2 sm:mt-3">
-          {threads.isLoading && <div className="text-sm text-gray-600">{t('archive.loading')}</div>}
+          {threads.isLoading && (
+            <div className="text-sm text-[var(--theme-muted)]">
+              {t('archive.loading')}
+            </div>
+          )}
           {threads.isError && <div className="text-sm text-red-600">{t('archive.error')}</div>}
           {threads.filtered.map((thread) => (
             <div
               key={thread.id}
-              className="rounded-md border border-gray-200 px-1.5 py-1 sm:px-3 sm:py-2"
+              className="rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] px-1.5 py-1 sm:px-3 sm:py-2"
             >
               <div className="flex items-center justify-between gap-2">
                 <Link
-                  className="text-sm font-semibold text-gray-900 hover:underline"
+                  className="text-sm font-semibold text-[var(--theme-primary)] hover:underline"
                   to={`/threads/${thread.id}`}
                 >
                   {highlightMatches(thread.title, threads.debouncedFilter)}
                 </Link>
                 <button
-                  className="text-xs text-gray-700 underline"
+                  className="text-xs text-[var(--theme-primary)] underline"
                   type="button"
                   onClick={() => {
                     if (!window.confirm(t('archive.restoreConfirmThread'))) {
@@ -112,7 +118,7 @@ export function ArchivePage() {
                   {t('archive.restore')}
                 </button>
               </div>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-[var(--theme-muted)] opacity-50">
                 {t('archive.lastActivity', {
                   time: formatDistanceToNow(new Date(thread.lastActivityAt), {
                     addSuffix: true,
@@ -122,7 +128,9 @@ export function ArchivePage() {
             </div>
           ))}
           {!threads.isLoading && threads.filtered.length === 0 && (
-            <div className="text-sm text-gray-600">{t('archive.emptyThreads')}</div>
+            <div className="text-sm text-[var(--theme-muted)]">
+              {t('archive.emptyThreads')}
+            </div>
           )}
           {threads.hasNextPage && (
             <button
@@ -146,31 +154,37 @@ export function ArchivePage() {
           onChange={(event) => entries.setFilter(event.target.value)}
         />
         {entries.isSearching && (
-          <div className="mt-1 text-xs text-gray-500">{t('archive.searching')}</div>
+        <div className="mt-1 text-xs text-[var(--theme-muted)]">
+          {t('archive.searching')}
+        </div>
         )}
         <div className="mt-2 space-y-2 sm:mt-3">
-          {entries.isLoading && <div className="text-sm text-gray-600">{t('archive.loading')}</div>}
+          {entries.isLoading && (
+            <div className="text-sm text-[var(--theme-muted)]">
+              {t('archive.loading')}
+            </div>
+          )}
           {entries.isError && <div className="text-sm text-red-600">{t('archive.error')}</div>}
           {entries.filtered.map((entry) => (
             <div
               key={entry.id}
-              className="rounded-md border border-gray-200 px-1.5 py-1 sm:px-3 sm:py-2"
+              className="rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] px-1.5 py-1 sm:px-3 sm:py-2"
             >
-              <div className="text-sm text-gray-900">
+              <div className="text-sm text-[var(--theme-ink)]">
                 {highlightMatches(entry.body, entries.debouncedFilter)}
               </div>
-              <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
+              <div className="mt-1 flex items-center justify-between text-xs text-[var(--theme-muted)]">
                 <span>
                   {formatDistanceToNow(new Date(entry.createdAt), { addSuffix: true })}
                 </span>
                 <div className="flex items-center gap-2">
                   {entry.threadId && (
-                    <Link className="text-xs text-gray-700 underline" to={`/threads/${entry.threadId}`}>
+                    <Link className="text-xs text-[var(--theme-primary)] underline" to={`/threads/${entry.threadId}`}>
                       {t('archive.openThread')}
                     </Link>
                   )}
                   <button
-                    className="text-xs text-gray-700 underline"
+                    className="text-xs text-[var(--theme-primary)] underline"
                     type="button"
                     onClick={() => {
                       if (!window.confirm(t('archive.restoreConfirmEntry'))) {
@@ -187,7 +201,9 @@ export function ArchivePage() {
             </div>
           ))}
           {!entries.isLoading && entries.filtered.length === 0 && (
-            <div className="text-sm text-gray-600">{t('archive.emptyEntries')}</div>
+            <div className="text-sm text-[var(--theme-muted)]">
+              {t('archive.emptyEntries')}
+            </div>
           )}
           {entries.hasNextPage && (
             <button

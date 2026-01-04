@@ -1,6 +1,7 @@
 package com.thredge.backend.api
 
 import com.thredge.backend.api.dto.EntryDetail
+import com.thredge.backend.api.dto.EntryMoveRequest
 import com.thredge.backend.api.dto.EntryUpdateRequest
 import com.thredge.backend.api.dto.PageResponse
 import com.thredge.backend.service.EntryService
@@ -65,6 +66,16 @@ class EntryController(
     ): EntryDetail {
         val ownerUsername = authSupport.requireUsername(authentication)
         return entryService.updateEntry(ownerUsername, id, request)
+    }
+
+    @PatchMapping("/{id}/move")
+    fun moveEntry(
+            @PathVariable id: String,
+            @Valid @RequestBody request: EntryMoveRequest,
+            authentication: Authentication?,
+    ): EntryDetail {
+        val ownerUsername = authSupport.requireUsername(authentication)
+        return entryService.moveEntry(ownerUsername, id, request)
     }
 
     @DeleteMapping("/{id}")

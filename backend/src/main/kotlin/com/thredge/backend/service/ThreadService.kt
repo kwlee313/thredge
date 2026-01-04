@@ -18,8 +18,10 @@ import com.thredge.backend.support.BadRequestException
 import com.thredge.backend.support.CategoryNameSupport
 import com.thredge.backend.support.IdParser
 import com.thredge.backend.support.NotFoundException
+import com.thredge.backend.support.UserSupport
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
@@ -31,13 +33,19 @@ class ThreadService(
         private val entryRepository: EntryRepository,
         private val categoryRepository: CategoryRepository,
         private val threadMapper: ThreadMapper,
+        private val userSupport: UserSupport,
 ) {
+    private val openEndedStartAt = Instant.EPOCH
+    private val openEndedEndAt = Instant.parse("9999-12-31T23:59:59Z")
+    private val emptyCategoryIdPlaceholder = UUID(0L, 0L)
+
     @Transactional(readOnly = true)
     fun list(ownerUsername: String, pageable: Pageable): PageResponse<ThreadSummary> {
+        val ownerId = userSupport.requireUserId(ownerUsername)
         val slice =
                 threadRepository
-                        .findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
-                                ownerUsername,
+                        .findByOwnerIdAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
+                                ownerId,
                                 pageable,
                         )
         return PageResponse.from(slice.map(threadMapper::toThreadSummary))
@@ -50,7 +58,15 @@ class ThreadService(
             date: LocalDate? = null,
             categoryIds: List<String>? = null,
     ): PageResponse<ThreadDetail> {
+        val ownerId = userSupport.requireUserId(ownerUsername)
         val hasFilter = date != null || !categoryIds.isNullOrEmpty()
+        val zone = ZoneId.systemDefault()
+        val startAt =
+                date?.atStartOfDay(zone)?.toInstant()
+                        ?: openEndedStartAt
+        val endAt =
+                date?.plusDays(1)?.atStartOfDay(zone)?.toInstant()
+                        ?: openEndedEndAt
         val slice =
                 if (hasFilter) {
                     val parsedIds =
@@ -63,17 +79,32 @@ class ThreadService(
                             parsedIds?.filter { it.toString() != "__uncategorized__" }?.takeIf {
                                 it.isNotEmpty()
                             }
-                    threadRepository.findFeedFiltered(
-                            ownerUsername,
-                            date,
-                            filteredIds,
-                            includeUncategorized,
-                            pageable,
-                    )
+                    val hasCategoryIds = !filteredIds.isNullOrEmpty()
+                    val shouldFilterByCategory = hasCategoryIds || includeUncategorized
+                    if (!shouldFilterByCategory) {
+                        threadRepository.findFeedByDateRange(
+                                ownerId,
+                                startAt,
+                                endAt,
+                                pageable,
+                        )
+                    } else {
+                        val categoryIdsForQuery =
+                                filteredIds ?: listOf(emptyCategoryIdPlaceholder)
+                        threadRepository.findFeedFiltered(
+                                ownerId,
+                                startAt,
+                                endAt,
+                                categoryIdsForQuery,
+                                hasCategoryIds,
+                                includeUncategorized,
+                                pageable,
+                        )
+                    }
                 } else {
                     threadRepository
-                            .findByOwnerUsernameAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
-                                    ownerUsername,
+                            .findByOwnerIdAndIsHiddenFalseOrderByIsPinnedDescLastActivityAtDesc(
+                                    ownerId,
                                     pageable,
                             )
                 }
@@ -93,6 +124,7 @@ class ThreadService(
             categoryIds: List<String>?,
             pageable: Pageable
     ): PageResponse<ThreadDetail> {
+        val ownerId = userSupport.requireUserId(ownerUsername)
         val trimmedQuery = query.trim()
         val parsedIds = categoryIds?.mapNotNull { runCatching { UUID.fromString(it) }.getOrNull() }
         val includeUncategorized = categoryIds?.any { it == "__uncategorized__" } ?: false
@@ -103,7 +135,7 @@ class ThreadService(
 
         val slice =
                 threadRepository.searchVisibleThreads(
-                        ownerUsername,
+                        ownerId,
                         trimmedQuery,
                         filteredIds,
                         includeUncategorized,
@@ -120,9 +152,10 @@ class ThreadService(
 
     @Transactional(readOnly = true)
     fun listHidden(ownerUsername: String, pageable: Pageable): PageResponse<ThreadSummary> {
+        val ownerId = userSupport.requireUserId(ownerUsername)
         val slice =
-                threadRepository.findByOwnerUsernameAndIsHiddenTrueOrderByLastActivityAtDesc(
-                        ownerUsername,
+                threadRepository.findByOwnerIdAndIsHiddenTrueOrderByLastActivityAtDesc(
+                        ownerId,
                         pageable
                 )
         return PageResponse.from(slice.map(threadMapper::toThreadSummary))
@@ -135,6 +168,7 @@ class ThreadService(
             categoryIds: List<String>?,
             pageable: Pageable
     ): PageResponse<ThreadSummary> {
+        val ownerId = userSupport.requireUserId(ownerUsername)
         val trimmedQuery = query.trim()
         val parsedIds = categoryIds?.mapNotNull { runCatching { UUID.fromString(it) }.getOrNull() }
         val includeUncategorized = categoryIds?.any { it == "__uncategorized__" } ?: false
@@ -145,7 +179,7 @@ class ThreadService(
 
         val slice =
                 threadRepository.searchHiddenThreads(
-                        ownerUsername,
+                        ownerId,
                         trimmedQuery,
                         filteredIds,
                         includeUncategorized,
@@ -155,14 +189,15 @@ class ThreadService(
     }
 
     fun createThread(ownerUsername: String, request: ThreadCreateRequest): ThreadSummary {
+        val ownerId = userSupport.requireUserId(ownerUsername)
         val body = request.body.trim()
         val title = deriveTitle(body)
-        val categories = resolveCategories(request.categoryNames, ownerUsername)
+        val categories = resolveCategories(request.categoryNames, ownerId)
         val thread =
                 ThreadEntity(
                                 title = title,
                                 body = body,
-                                ownerUsername = ownerUsername,
+                                ownerId = ownerId,
                         )
                         .apply { this.categories = categories.toMutableSet() }
         val saved = threadRepository.save(thread)
@@ -177,7 +212,8 @@ class ThreadService(
 
     @Transactional(readOnly = true)
     fun getThread(ownerUsername: String, id: String, includeHidden: Boolean): ThreadDetail {
-        val thread = findThread(id, ownerUsername, includeHidden = includeHidden)
+        val ownerId = userSupport.requireUserId(ownerUsername)
+        val thread = findThread(id, ownerId, includeHidden = includeHidden)
         return buildThreadDetail(thread)
     }
 
@@ -187,7 +223,8 @@ class ThreadService(
             id: String,
             request: ThreadUpdateRequest
     ): ThreadSummary {
-        val thread = findThread(id, ownerUsername)
+        val ownerId = userSupport.requireUserId(ownerUsername)
+        val thread = findThread(id, ownerId)
         val newBody = request.body?.trim()
         if (newBody != null) {
             thread.body = newBody
@@ -198,7 +235,7 @@ class ThreadService(
 
         request.categoryNames?.let { names ->
             val oldCategories = thread.categories.toList()
-            val newCategories = resolveCategories(names, ownerUsername)
+            val newCategories = resolveCategories(names, ownerId)
 
             val oldIds = oldCategories.map { it.id }.toSet()
             val newIds = newCategories.map { it.id }.toSet()
@@ -225,7 +262,8 @@ class ThreadService(
 
     @Transactional
     fun hideThread(ownerUsername: String, id: String) {
-        val thread = findThread(id, ownerUsername)
+        val ownerId = userSupport.requireUserId(ownerUsername)
+        val thread = findThread(id, ownerId)
         thread.isHidden = true
         threadRepository.save(thread)
 
@@ -237,7 +275,8 @@ class ThreadService(
 
     @Transactional
     fun restoreThread(ownerUsername: String, id: String): ThreadSummary {
-        val thread = findThread(id, ownerUsername, includeHidden = true)
+        val ownerId = userSupport.requireUserId(ownerUsername)
+        val thread = findThread(id, ownerId, includeHidden = true)
         if (!thread.isHidden) {
             return threadMapper.toThreadSummary(thread)
         }
@@ -255,7 +294,8 @@ class ThreadService(
 
     @Transactional
     fun pinThread(ownerUsername: String, id: String): ThreadSummary {
-        val thread = findThread(id, ownerUsername)
+        val ownerId = userSupport.requireUserId(ownerUsername)
+        val thread = findThread(id, ownerId)
         thread.isPinned = true
         thread.lastActivityAt = Instant.now()
         val saved = threadRepository.save(thread)
@@ -264,7 +304,8 @@ class ThreadService(
 
     @Transactional
     fun unpinThread(ownerUsername: String, id: String): ThreadSummary {
-        val thread = findThread(id, ownerUsername)
+        val ownerId = userSupport.requireUserId(ownerUsername)
+        val thread = findThread(id, ownerId)
         thread.isPinned = false
         thread.lastActivityAt = Instant.now()
         val saved = threadRepository.save(thread)
@@ -273,7 +314,8 @@ class ThreadService(
 
     @Transactional
     fun addEntry(ownerUsername: String, threadId: String, request: EntryRequest): EntryDetail {
-        val thread = findThread(threadId, ownerUsername)
+        val ownerId = userSupport.requireUserId(ownerUsername)
+        val thread = findThread(threadId, ownerId)
         val parentEntryId =
                 request.parentEntryId?.let {
                     runCatching { UUID.fromString(it) }.getOrElse {
@@ -284,12 +326,15 @@ class ThreadService(
         if (parentDepth >= 3) {
             throw BadRequestException("Reply depth limit reached.")
         }
+        val maxOrderIndex =
+                entryRepository.findMaxOrderIndex(thread.id!!, parentEntryId) ?: 0L
         val entry =
                 entryRepository.save(
                         EntryEntity(
                                 thread = thread,
                                 body = request.body.trim(),
                                 parentEntryId = parentEntryId,
+                                orderIndex = maxOrderIndex + 1000L,
                         ),
                 )
         thread.lastActivityAt = Instant.now()
@@ -299,12 +344,12 @@ class ThreadService(
 
     private fun findThread(
             id: String,
-            ownerUsername: String,
+            ownerId: UUID,
             includeHidden: Boolean = false,
     ): ThreadEntity {
         val uuid = IdParser.parseUuid(id, "Invalid thread id.")
         val thread =
-                threadRepository.findByIdAndOwnerUsername(uuid, ownerUsername)
+                threadRepository.findByIdAndOwnerId(uuid, ownerId)
                         ?: throw NotFoundException("Thread not found.")
         if (thread.isHidden && !includeHidden) {
             throw NotFoundException("Thread not found.")
@@ -314,7 +359,7 @@ class ThreadService(
 
     private fun resolveCategories(
             rawNames: List<String>,
-            ownerUsername: String,
+            ownerId: UUID,
     ): List<CategoryEntity> {
         val names =
                 CategoryNameSupport.normalizeAll(rawNames).distinctBy {
@@ -324,7 +369,7 @@ class ThreadService(
             return emptyList()
         }
         names.forEach(CategoryNameSupport::validateLength)
-        val existing = categoryRepository.findByOwnerUsernameOrderByName(ownerUsername)
+        val existing = categoryRepository.findByOwnerIdOrderByName(ownerId)
         val existingByKey = existing.associateBy { CategoryNameSupport.key(it.name) }
         val resolved = mutableListOf<CategoryEntity>()
         val toCreate = mutableListOf<CategoryEntity>()
@@ -334,7 +379,10 @@ class ThreadService(
             if (matched != null) {
                 resolved.add(matched)
             } else {
-                val entity = CategoryEntity(name = name, ownerUsername = ownerUsername)
+                val entity = CategoryEntity(
+                        name = name,
+                        ownerId = ownerId,
+                )
                 toCreate.add(entity)
                 resolved.add(entity)
             }
@@ -386,7 +434,7 @@ class ThreadService(
     }
 
     private fun buildThreadDetail(thread: ThreadEntity): ThreadDetail {
-        val entries = entryRepository.findByThreadIdOrderByCreatedAtAsc(thread.id!!)
+        val entries = entryRepository.findByThreadIdOrderByOrderIndexAsc(thread.id!!)
         return threadMapper.toThreadDetail(thread, entries)
     }
 
@@ -395,7 +443,7 @@ class ThreadService(
             return emptyList()
         }
         val threadIds = threads.mapNotNull { it.id }
-        val entries = entryRepository.findByThreadIdInOrderByCreatedAtAsc(threadIds)
+        val entries = entryRepository.findByThreadIdInOrderByOrderIndexAsc(threadIds)
         val groupedEntries = entries.groupBy { it.thread?.id }
         return threads.map { thread ->
             val threadEntries = groupedEntries[thread.id].orEmpty()

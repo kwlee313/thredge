@@ -38,7 +38,7 @@ export function EntryEditor({
       }}
     >
       <AutosizeTextarea
-        className="min-h-[72px] w-full resize-none overflow-y-hidden rounded-md border border-gray-300 px-3 py-2 text-sm"
+        className="min-h-[72px] w-full resize-none overflow-y-hidden rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-2 text-sm text-[var(--theme-ink)] placeholder:text-[var(--theme-muted)] placeholder:opacity-60"
         value={value}
         onChange={onChange}
         handleTextareaInput={handleTextareaInput}

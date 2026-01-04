@@ -6,6 +6,7 @@ import jakarta.persistence.FetchType
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
+import jakarta.persistence.Index
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.PrePersist
@@ -15,7 +16,23 @@ import java.time.Instant
 import java.util.UUID
 
 @Entity
-@Table(name = "entries")
+@Table(
+    name = "entries",
+    indexes = [
+        Index(
+            name = "idx_entries_thread_created",
+            columnList = "thread_id, created_at",
+        ),
+        Index(
+            name = "idx_entries_thread_hidden_created",
+            columnList = "thread_id, is_hidden, created_at",
+        ),
+        Index(
+            name = "idx_entries_parent",
+            columnList = "parent_entry_id",
+        ),
+    ],
+)
 class EntryEntity(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -34,6 +51,9 @@ class EntryEntity(
 
     @Column(nullable = false)
     var isHidden: Boolean = false,
+
+    @Column(name = "order_index", nullable = false)
+    var orderIndex: Long = 0,
 
     @Column(nullable = false)
     var createdAt: Instant = Instant.now(),

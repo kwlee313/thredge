@@ -9,6 +9,7 @@ export type EntryCardData = {
 }
 
 export type EntryCardUi = {
+  showMoveControls?: boolean
   isEditing: boolean
   editingBody: string
   isReplyActive: boolean
@@ -16,7 +17,12 @@ export type EntryCardUi = {
   isEntryUpdatePending: boolean
   isEntryHidePending: boolean
   isEntryToggleMutePending: boolean
+  isEntryMovePending: boolean
+  isMoveUpDisabled: boolean
+  isMoveDownDisabled: boolean
   isReplyPending: boolean
+  replyComposerFocusId?: string | null
+  onReplyComposerFocusHandled?: () => void
 }
 
 export type EntryCardActions = {
@@ -26,6 +32,8 @@ export type EntryCardActions = {
   onEditSave: () => void
   onToggleMute: (nextBody: string) => void
   onHide: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
   onReplyStart: () => void
   onReplyChange: (value: string) => void
   onReplyCancel: () => void
@@ -41,9 +49,10 @@ export type ThreadEditorLabels = {
   save: string
   saving?: string
   cancel: string
-  categoryPlaceholder: string
+  categorySearchPlaceholder: string
   addCategory: string
   cancelCategory: string
+  loadMore: string
 }
 
 export type ThreadEditorProps = {
@@ -54,13 +63,11 @@ export type ThreadEditorProps = {
   categories: CategorySummary[]
   selectedCategories: string[]
   editingCategoryInput: string
-  isAddingCategory: boolean
   isCreateCategoryPending: boolean
   isSaving: boolean
   buttonSize?: 'sm' | 'md'
   onToggleCategory: (name: string) => void
   onCategoryInputChange: (value: string) => void
-  onCategoryOpen: () => void
   onCategoryCancel: () => void
   onCategorySubmit: () => void
   labels: ThreadEditorLabels

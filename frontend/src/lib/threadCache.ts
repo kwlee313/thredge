@@ -1,5 +1,5 @@
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
-import type { PageResponse, ThreadDetail, ThreadSummary } from './api'
+import type { EntryDetail, PageResponse, ThreadDetail, ThreadSummary } from './api'
 import { queryKeys } from './queryKeys'
 
 type ThreadFeedData = InfiniteData<PageResponse<ThreadDetail>>
@@ -59,6 +59,29 @@ export const updateEntryInFeed = (
   })
 }
 
+export const updateEntryPositionInFeed = (
+  queryClient: QueryClient,
+  entry: EntryDetail,
+) => {
+  queryClient.setQueryData(queryKeys.threads.feed, (data) => {
+    return updateFeedPages(data, (items) =>
+      items.map((thread) => ({
+        ...thread,
+        entries: thread.entries.map((item) =>
+          item.id === entry.id
+            ? {
+                ...item,
+                parentEntryId: entry.parentEntryId,
+                orderIndex: entry.orderIndex,
+                createdAt: entry.createdAt,
+              }
+            : item,
+        ),
+      })),
+    )
+  })
+}
+
 export const removeEntryFromFeed = (queryClient: QueryClient, entryId: string) => {
   queryClient.setQueryData(queryKeys.threads.feed, (data) => {
     return updateFeedPages(data, (items) =>
@@ -85,6 +108,32 @@ export const updateEntryInThreadDetail = (
       ...thread,
       entries: thread.entries.map((entry) =>
         entry.id === entryId ? { ...entry, body } : entry,
+      ),
+    }
+  })
+}
+
+export const updateEntryPositionInThreadDetail = (
+  queryClient: QueryClient,
+  threadId: string,
+  entry: EntryDetail,
+) => {
+  queryClient.setQueryData(queryKeys.thread.detail(threadId), (data) => {
+    if (!data || typeof data !== 'object') {
+      return data
+    }
+    const thread = data as ThreadDetail
+    return {
+      ...thread,
+      entries: thread.entries.map((item) =>
+        item.id === entry.id
+          ? {
+              ...item,
+              parentEntryId: entry.parentEntryId,
+              orderIndex: entry.orderIndex,
+              createdAt: entry.createdAt,
+            }
+          : item,
       ),
     }
   })

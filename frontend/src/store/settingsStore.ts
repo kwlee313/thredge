@@ -10,6 +10,8 @@ export type SettingsState = {
   targetLanguage: SupportedLanguage
   correctionEnabled: boolean
   coachTone: CoachTone
+  themePreset: string
+  themeCustomColor: string
   setAll: (next: Omit<SettingsState, 'setAll'>) => void
 }
 
@@ -21,9 +23,10 @@ export const useSettingsStore = create<SettingsState>()(
       targetLanguage: 'en',
       correctionEnabled: true,
       coachTone: 'warm',
+      themePreset: 'graphite',
+      themeCustomColor: '#111827',
       setAll: (next) => set(next),
     }),
     { name: 'thredge-settings-v1' },
   ),
 )
-

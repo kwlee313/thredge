@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 export const useDateFilter = (locale: string) => {
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const formatDateLabel = (date: Date) =>
     new Intl.DateTimeFormat(locale, {
@@ -27,6 +28,23 @@ export const useDateFilter = (locale: string) => {
     }
     return new Date(year, month - 1, day)
   }
+
+  const selectedDate = useMemo(() => {
+    const dateStr = searchParams.get('date')
+    return dateStr ? parseDateInput(dateStr) : null
+  }, [searchParams])
+
+  const setSelectedDate = useCallback((date: Date | null) => {
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev)
+      if (date) {
+        newParams.set('date', formatDateInput(date))
+      } else {
+        newParams.delete('date')
+      }
+      return newParams
+    }, { replace: true })
+  }, [setSearchParams])
 
   const shiftDateByDays = (date: Date, amount: number) =>
     new Date(date.getFullYear(), date.getMonth(), date.getDate() + amount)

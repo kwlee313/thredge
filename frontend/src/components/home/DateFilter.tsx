@@ -23,9 +23,9 @@ export function DateFilter({
   onInputChange,
 }: DateFilterProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+    <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--theme-muted)]">
       <button
-        className="rounded-full border border-gray-300 px-2 py-1 text-[11px] font-semibold text-gray-700 transition-all"
+        className="rounded-full border border-[var(--theme-border)] px-2 py-1 text-[11px] font-semibold text-[var(--theme-ink)] transition-all hover:opacity-80"
         type="button"
         onClick={onClear}
         disabled={!selectedDate}
@@ -34,7 +34,7 @@ export function DateFilter({
       </button>
       <div className="flex items-center gap-1">
         <button
-          className="flex items-center justify-center px-2 py-1 text-xs font-semibold text-gray-600 transition-all hover:text-gray-900"
+          className="flex items-center justify-center px-2 py-1 text-xs font-semibold text-[var(--theme-ink)] transition-all hover:opacity-80"
           type="button"
           onClick={onPrev}
           aria-label={labels.prevDay}
@@ -42,14 +42,14 @@ export function DateFilter({
           {'<'}
         </button>
         <input
-          className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700"
+          className="rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] px-2 py-1 text-xs text-[var(--theme-ink)]"
           type="date"
           value={dateInputValue}
           onChange={(event) => onInputChange(event.target.value)}
           aria-label={labels.dateInputLabel}
         />
         <button
-          className="flex items-center justify-center px-2 py-1 text-xs font-semibold text-gray-600 transition-all hover:text-gray-900"
+          className="flex items-center justify-center px-2 py-1 text-xs font-semibold text-[var(--theme-ink)] transition-all hover:opacity-80"
           type="button"
           onClick={onNext}
           aria-label={labels.nextDay}

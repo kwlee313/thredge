@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --theme-primary: #111827;
+  --theme-on-primary: #ffffff;
+  --theme-ink: #0b0f18;
+  --theme-muted: #2f3b4a;
+  --theme-soft: #e5eaf1;
+  --theme-surface: #f1f4f9;
+  --theme-border: #b6c0d0;
+}
+
 html,
 body,
 #root {

@@ -2,7 +2,9 @@ package com.thredge.backend.service
 
 import com.thredge.backend.api.dto.EntryDetail
 import com.thredge.backend.api.dto.EntryMoveDirection
+import com.thredge.backend.api.dto.EntryMovePosition
 import com.thredge.backend.api.dto.EntryMoveRequest
+import com.thredge.backend.api.dto.EntryMoveTargetRequest
 import com.thredge.backend.api.dto.EntryUpdateRequest
 import com.thredge.backend.api.dto.PageResponse
 import com.thredge.backend.api.mapper.ThreadMapper
@@ -190,6 +192,109 @@ class EntryService(
             entries.filter { candidate ->
                 val id = candidate.id ?: return@filter false
                 val (prevParentId, prevOrderIndex) = originalStates[id] ?: return@filter true
+                candidate.parentEntryId != prevParentId || candidate.orderIndex != prevOrderIndex
+            }
+        val saved = entryRepository.saveAll(changed)
+        bumpThreadActivity(entry.thread?.id)
+        val moved =
+            saved.firstOrNull { it.id == entry.id }
+                ?: entryRepository.findById(entryId).orElse(entry)
+        return threadMapper.toEntryDetail(moved)
+    }
+
+    @Transactional
+    fun moveEntryTo(ownerUsername: String, id: String, request: EntryMoveTargetRequest): EntryDetail {
+        val ownerId = userSupport.requireUserId(ownerUsername)
+        val entry = findEntry(id, ownerId)
+        val threadId = entry.thread?.id ?: throw NotFoundException("Thread not found.")
+        val entries =
+            entryRepository.findByThreadIdOrderByOrderIndexAsc(threadId)
+                .filter { !it.isHidden }
+        val entryById = entries.mapNotNull { candidate ->
+            val entryId = candidate.id ?: return@mapNotNull null
+            entryId to candidate
+        }.toMap()
+        val childrenByParent = mutableMapOf<UUID, MutableList<EntryEntity>>()
+        val roots = mutableListOf<EntryEntity>()
+        entries.forEach { candidate ->
+            val parentId = candidate.parentEntryId
+            if (parentId != null && entryById.containsKey(parentId)) {
+                childrenByParent.getOrPut(parentId) { mutableListOf() }.add(candidate)
+            } else {
+                roots.add(candidate)
+            }
+        }
+        sortByOrderIndex(roots)
+        childrenByParent.values.forEach { sortByOrderIndex(it) }
+
+        val entryId = entry.id ?: return threadMapper.toEntryDetail(entry)
+        val targetId = IdParser.parseUuid(request.targetEntryId, "Invalid target entry id.")
+        val target = entryById[targetId] ?: throw NotFoundException("Target entry not found.")
+        if (targetId == entryId) {
+            return threadMapper.toEntryDetail(entry)
+        }
+        val resolvedParentId = entry.parentEntryId?.takeIf { entryById.containsKey(it) }
+        val children = childrenByParent[entryId].orEmpty()
+        if (resolvedParentId != null && children.isNotEmpty()) {
+            throw BadRequestException("Entries with replies cannot be moved.")
+        }
+        if (isDescendant(targetId, entryId, childrenByParent)) {
+            throw BadRequestException("Invalid move target.")
+        }
+
+        val originalParentId = entry.parentEntryId
+        val originalOrderIndex = entry.orderIndex
+        val originalStates =
+            entries.mapNotNull { candidate ->
+                val candidateId = candidate.id ?: return@mapNotNull null
+                candidateId to (candidate.parentEntryId to candidate.orderIndex)
+            }.toMap()
+
+        val targetParentId =
+            if (request.position == EntryMovePosition.CHILD) {
+                targetId
+            } else {
+                target.parentEntryId?.takeIf { entryById.containsKey(it) }
+            }
+        val subtreeDepth = resolveSubtreeDepth(entryId, childrenByParent)
+        val parentDepth =
+            if (targetParentId == null) {
+                0
+            } else {
+                resolveDepth(targetParentId, entryById)
+            }
+        if (parentDepth + subtreeDepth > 3) {
+            throw BadRequestException("Reply depth limit reached.")
+        }
+
+        removeFromParent(entry, originalParentId, roots, childrenByParent)
+        entry.parentEntryId = targetParentId
+        val targetList =
+            if (targetParentId == null) {
+                roots
+            } else {
+                childrenByParent.getOrPut(targetParentId) { mutableListOf() }
+            }
+        val targetIndex = targetList.indexOfFirst { it.id == targetId }
+        val insertIndex =
+            if (request.position == EntryMovePosition.CHILD) {
+                0
+            } else if (targetIndex == -1) {
+                targetList.size
+            } else if (request.position == EntryMovePosition.BEFORE) {
+                targetIndex
+            } else {
+                targetIndex + 1
+            }
+        insertWithOrderIndex(targetList, entry, insertIndex)
+
+        if (entry.parentEntryId == originalParentId && entry.orderIndex == originalOrderIndex) {
+            return threadMapper.toEntryDetail(entry)
+        }
+        val changed =
+            entries.filter { candidate ->
+                val candidateId = candidate.id ?: return@filter false
+                val (prevParentId, prevOrderIndex) = originalStates[candidateId] ?: return@filter true
                 candidate.parentEntryId != prevParentId || candidate.orderIndex != prevOrderIndex
             }
         val saved = entryRepository.saveAll(changed)

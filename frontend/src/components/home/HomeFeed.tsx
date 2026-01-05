@@ -243,7 +243,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
     createCategoryMutation.mutate({ name, target: 'edit' })
   }
 
-  const { createEntryMutation, moveEntryMutation } = useEntryActions({
+  const { createEntryMutation, moveEntryToMutation } = useEntryActions({
     invalidateTargets: ['feed', 'search'],
     onEntryCreated: (_created, variables) => {
       if (variables.parentEntryId) {
@@ -710,7 +710,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
                   isEntryUpdatePending: updateEntryMutation.isPending,
                   isEntryHidePending: hideEntryMutation.isPending,
                   isEntryToggleMutePending: toggleEntryMuteMutation.isPending,
-                  isEntryMovePending: moveEntryMutation.isPending,
+                  isEntryMovePending: moveEntryToMutation.isPending,
                   isReplyPending: createEntryMutation.isPending,
                   isAddEntryPending: createEntryMutation.isPending,
                   entryComposerFocusId,
@@ -772,8 +772,13 @@ export function HomeFeed({ username }: HomeFeedProps) {
                     toggleEntryMuteMutation.mutate({ entryId, body })
                   },
                   onEntryHide: (entryId) => hideEntryMutation.mutate(entryId),
-                  onEntryMove: (entryId, direction, threadId) => {
-                    moveEntryMutation.mutate({ entryId, direction, threadId })
+                  onEntryMoveTo: async (entryId, targetEntryId, position, threadId) => {
+                    await moveEntryToMutation.mutateAsync({
+                      entryId,
+                      targetEntryId,
+                      position,
+                      threadId,
+                    })
                   },
                   onReplyStart: (entryId) => {
                     setReplyComposerFocusId(`reply:${entryId}`)

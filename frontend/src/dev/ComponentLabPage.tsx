@@ -44,7 +44,6 @@ export function ComponentLabPage() {
             highlightQuery: '',
           }}
           ui={{
-            showMoveControls: false,
             isEditing: isEditingEntry,
             editingBody: entryBody,
             isReplyActive,
@@ -53,9 +52,12 @@ export function ComponentLabPage() {
             isEntryHidePending: false,
             isEntryToggleMutePending: false,
             isEntryMovePending: false,
-            isMoveUpDisabled: true,
-            isMoveDownDisabled: true,
             isReplyPending: false,
+            dragState: {
+              activeEntryId: null,
+              overEntryId: null,
+              overPosition: null,
+            },
             replyComposerFocusId: null,
             onReplyComposerFocusHandled: () => {},
           }}
@@ -66,8 +68,8 @@ export function ComponentLabPage() {
             onEditSave: () => setIsEditingEntry(false),
             onToggleMute: setEntryBody,
             onHide: () => {},
-            onMoveUp: () => {},
-            onMoveDown: () => {},
+            onDragStart: () => {},
+            onDragEnd: () => {},
             onReplyStart: () => setIsReplyActive(true),
             onReplyChange: setReplyDraft,
             onReplyCancel: () => setIsReplyActive(false),
@@ -87,6 +89,7 @@ export function ComponentLabPage() {
           onChange={setEditingThreadBody}
           onSave={() => {}}
           onCancel={() => {}}
+          onComplete={() => {}}
           categories={categories}
           selectedCategories={selectedCategories}
           editingCategoryInput={categoryInput}
@@ -110,6 +113,7 @@ export function ComponentLabPage() {
           labels={{
             save: 'Save',
             cancel: 'Cancel',
+            complete: 'Complete',
             categorySearchPlaceholder: 'Find category',
             addCategory: 'Add',
             cancelCategory: 'Cancel',

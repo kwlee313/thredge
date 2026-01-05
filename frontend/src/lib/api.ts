@@ -25,6 +25,7 @@ export type EntryDetail = {
   threadId?: string | null
 }
 export type EntryMoveDirection = 'UP' | 'DOWN'
+export type EntryMovePosition = 'BEFORE' | 'AFTER' | 'CHILD'
 export type CategorySummary = {
   id: string
   name: string
@@ -67,7 +68,16 @@ const requestJson = async <T>(
     ...init,
   })
   if (!response.ok) {
-    throw new Error(`${errorLabel}: ${response.status}`)
+    let message = `${response.status}`
+    try {
+      const data = (await response.json()) as { message?: string }
+      if (data?.message) {
+        message = data.message
+      }
+    } catch {
+      // Ignore response parsing errors for non-JSON bodies.
+    }
+    throw new Error(`${errorLabel}: ${message}`)
   }
   return (await response.json()) as T
 }
@@ -256,6 +266,18 @@ export async function moveEntry(
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ direction }),
+  }, 'Entry move failed')
+}
+
+export async function moveEntryTo(
+  id: string,
+  targetEntryId: string,
+  position: EntryMovePosition,
+): Promise<EntryDetail> {
+  return requestJson(`/api/entries/${id}/move-to`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ targetEntryId, position }),
   }, 'Entry move failed')
 }
 

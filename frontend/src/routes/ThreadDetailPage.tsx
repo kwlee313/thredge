@@ -7,11 +7,11 @@ import {
   fetchCategories,
   fetchThread,
 } from '../lib/api'
-import type { EntryDetail } from '../lib/api'
 import { useTextareaAutosize } from '../hooks/useTextareaAutosize'
 import { useThreadActions } from '../hooks/useThreadActions'
 import { THREAD_DETAIL_INVALIDATIONS } from '../hooks/threadActionPresets'
 import { EntryCard } from '../components/home/EntryCard'
+import type { EntryDragState } from '../components/home/types'
 import { useThreadDetailState } from '../hooks/useThreadDetailState'
 import { buildEntryDepthMap } from '../lib/entryDepth'
 import { buildEntryOrder } from '../lib/entryOrder'
@@ -92,7 +92,7 @@ export function ThreadDetailPage() {
     createCategoryMutation.mutate({ name })
   }
 
-  const { createEntryMutation, moveEntryMutation } = useEntryActions({
+  const { createEntryMutation, moveEntryToMutation } = useEntryActions({
     threadId: id ?? undefined,
     invalidateTargets: ['thread', 'feed'],
     onEntryCreated: (_created, variables) => {
@@ -153,76 +153,163 @@ export function ThreadDetailPage() {
   const entries = threadQuery.data?.entries ?? []
   const entryDepth = useMemo(() => buildEntryDepthMap(entries), [entries])
   const orderedEntries = useMemo(() => buildEntryOrder(entries), [entries])
-  const entryStructure = useMemo(() => {
-    const entryById = new Map(entries.map((entry) => [entry.id, entry]))
-    const childrenByParent = new Map<string, EntryDetail[]>()
-    const roots: EntryDetail[] = []
-    entries.forEach((entry) => {
-      const parentId = entry.parentEntryId
-      if (parentId && entryById.has(parentId)) {
-        const children = childrenByParent.get(parentId)
-        if (children) {
-          children.push(entry)
-        } else {
-          childrenByParent.set(parentId, [entry])
-        }
-      } else {
-        roots.push(entry)
-      }
+  const [dragState, setDragState] = useState<EntryDragState>({
+    activeEntryId: null,
+    overEntryId: null,
+    overPosition: null,
+  })
+  const [dragError, setDragError] = useState<string | null>(null)
+  const dragStateRef = useRef(dragState)
+  const setDragStateSafe = (updater: EntryDragState | ((prev: EntryDragState) => EntryDragState)) =>
+    setDragState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      dragStateRef.current = next
+      return next
     })
-    const byOrderIndex = (a: EntryDetail, b: EntryDetail) =>
-      a.orderIndex === b.orderIndex
-        ? a.createdAt.localeCompare(b.createdAt)
-        : a.orderIndex - b.orderIndex
-    roots.sort(byOrderIndex)
-    childrenByParent.forEach((children) => children.sort(byOrderIndex))
-    return { entryById, childrenByParent, roots }
-  }, [entries])
-  const entryIndexById = useMemo(
-    () => new Map(orderedEntries.map((entry, index) => [entry.id, index])),
-    [orderedEntries],
-  )
-  const entrySubtreeDepth = useMemo(() => {
-    const depthCache = new Map<string, number>()
-    const resolveDepth = (entryId: string): number => {
-      const cached = depthCache.get(entryId)
-      if (cached) {
-        return cached
-      }
-      const children = entryStructure.childrenByParent.get(entryId) ?? []
-      if (children.length === 0) {
-        depthCache.set(entryId, 1)
-        return 1
-      }
-      const maxChildDepth = Math.max(...children.map((child) => resolveDepth(child.id)))
-      const depth = 1 + maxChildDepth
-      depthCache.set(entryId, depth)
-      return depth
+  const resetDragState = () =>
+    setDragStateSafe({ activeEntryId: null, overEntryId: null, overPosition: null })
+
+  const computeRenderDropIndex = (state: EntryDragState) => {
+    const { activeEntryId, overEntryId, overPosition } = state
+    if (!activeEntryId || !overEntryId || !overPosition) {
+      return null
     }
-    entries.forEach((entry) => {
-      resolveDepth(entry.id)
+    if (activeEntryId === overEntryId) {
+      return null
+    }
+    const overIndex = orderedEntries.findIndex((entry) => entry.id === overEntryId)
+    if (overIndex === -1) {
+      return null
+    }
+    if (overPosition === 'child') {
+      return overIndex + 1
+    }
+    return overPosition === 'before' ? overIndex : overIndex + 1
+  }
+
+  const finalizeDrag = async (state: EntryDragState) => {
+    const { activeEntryId, overEntryId, overPosition } = state
+    if (!activeEntryId || !overEntryId || !overPosition) {
+      return
+    }
+    try {
+      const position =
+        overPosition === 'before' ? 'BEFORE' : overPosition === 'after' ? 'AFTER' : 'CHILD'
+      await moveEntryToMutation.mutateAsync({
+        entryId: activeEntryId,
+        targetEntryId: overEntryId,
+        position,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Reply move failed.'
+      setDragError(message)
+    }
+  }
+
+  const handleDragStart = (entryId: string) => {
+    if (moveEntryToMutation.isPending) {
+      return
+    }
+    setDragError(null)
+    setDragStateSafe({ activeEntryId: entryId, overEntryId: null, overPosition: null })
+  }
+
+  const handleDragHover = (entryId: string, position: 'before' | 'after' | 'child') => {
+    if (!dragStateRef.current.activeEntryId) {
+      return
+    }
+    if (dragStateRef.current.activeEntryId === entryId) {
+      setDragStateSafe((prev) =>
+        prev.overEntryId ? { ...prev, overEntryId: null, overPosition: null } : prev,
+      )
+      return
+    }
+    setDragStateSafe((prev) => {
+      if (prev.overEntryId === entryId && prev.overPosition === position) {
+        return prev
+      }
+      return { ...prev, overEntryId: entryId, overPosition: position }
     })
-    return depthCache
-  }, [entries, entryStructure.childrenByParent])
-  const resolveRootId = (entryId: string) => {
-    let currentId: string | null | undefined = entryId
-    let rootId: string | null = null
-    while (currentId) {
-      rootId = currentId
-      currentId = entryStructure.entryById.get(currentId)?.parentEntryId ?? null
-    }
-    return rootId
   }
-  const isAncestor = (ancestorId: string, entryId: string) => {
-    let currentId: string | null | undefined = entryId
-    while (currentId) {
-      if (currentId === ancestorId) {
-        return true
+
+  const handleDragEnd = () => {
+    const finalState = dragStateRef.current
+    resetDragState()
+    void finalizeDrag(finalState)
+  }
+
+  useEffect(() => {
+    if (!dragState.activeEntryId) {
+      return
+    }
+    const previousTouchAction = document.body.style.touchAction
+    const previousUserSelect = document.body.style.userSelect
+    document.body.style.touchAction = 'none'
+    document.body.style.userSelect = 'none'
+    const handleGlobalPointerUp = () => {
+      handleDragEnd()
+    }
+    const handleGlobalPointerMove = (event: PointerEvent) => {
+      const target = document.elementFromPoint(event.clientX, event.clientY)
+      if (!target) {
+        return
       }
-      currentId = entryStructure.entryById.get(currentId)?.parentEntryId ?? null
+      const entryElement = target.closest('[data-entry-id]') as HTMLElement | null
+      if (!entryElement) {
+        setDragStateSafe((prev) =>
+          prev.overEntryId ? { ...prev, overEntryId: null, overPosition: null } : prev,
+        )
+        return
+      }
+      const entryId = entryElement.getAttribute('data-entry-id')
+      if (!entryId) {
+        return
+      }
+      const rect = entryElement.getBoundingClientRect()
+      const depthAttr = entryElement.getAttribute('data-entry-depth')
+      const depth = depthAttr ? Number(depthAttr) : 1
+      const isChildZone =
+        depth < 3 && event.clientY < rect.top + rect.height * 0.8
+      const position = isChildZone
+        ? 'child'
+        : event.clientY < rect.top + rect.height / 2
+          ? 'before'
+          : 'after'
+      handleDragHover(entryId, position)
     }
-    return false
+    window.addEventListener('pointerup', handleGlobalPointerUp)
+    window.addEventListener('pointercancel', handleGlobalPointerUp)
+    window.addEventListener('pointermove', handleGlobalPointerMove)
+    return () => {
+      window.removeEventListener('pointerup', handleGlobalPointerUp)
+      window.removeEventListener('pointercancel', handleGlobalPointerUp)
+      window.removeEventListener('pointermove', handleGlobalPointerMove)
+      document.body.style.touchAction = previousTouchAction
+      document.body.style.userSelect = previousUserSelect
+    }
+  }, [dragState.activeEntryId])
+
+  const renderDropIndicator = (depth: number, key: string) => {
+    const indentPx = depth === 2 ? 24 : depth >= 3 ? 48 : 0
+    return (
+      <div key={key} className="pointer-events-none px-1">
+        <div className="relative h-1">
+          <div
+            className="absolute h-1 rounded-full bg-[var(--theme-ink)]"
+            style={{
+              left: indentPx,
+              right: 0,
+            }}
+          />
+        </div>
+      </div>
+    )
   }
+  const renderDropIndex = computeRenderDropIndex(dragState)
+  const dropDepth =
+    dragState.overEntryId && dragState.overEntryId !== dragState.activeEntryId
+      ? (entryDepth.get(dragState.overEntryId) ?? 1) + (dragState.overPosition === 'child' ? 1 : 0)
+      : 1
 
   if (!id) {
     return (
@@ -266,59 +353,49 @@ export function ThreadDetailPage() {
               {threadQuery.isError && <div className="text-sm text-red-600">{t('thread.error')}</div>}
               {threadQuery.data && (
                 <>
-                  <ThreadCardHeader
-              thread={threadQuery.data}
-              isEditing={isEditingThread}
-              editingThreadCategories={editingThreadCategories}
-              isPinPending={pinThreadMutation.isPending}
-              isUnpinPending={unpinThreadMutation.isPending}
-              isHidePending={hideThreadMutation.isPending}
-              labels={{
-                pin: t('home.pin'),
-                unpin: t('home.unpin'),
-                edit: t('common.edit'),
-                archive: t('common.archive'),
-              }}
-              onTogglePin={() => {
-                if (threadQuery.data.pinned) {
-                  unpinThreadMutation.mutate(threadQuery.data.id)
-                } else {
-                  pinThreadMutation.mutate(threadQuery.data.id)
-                }
-              }}
-              onStartEdit={() => threadActions.startEditThread(threadQuery.data)}
-              onToggleMute={() => {
-                if (!threadQuery.data.body) {
-                  return
-                }
-                toggleThreadMuteMutation.mutate({
-                  threadId: threadQuery.data.id,
-                  body: toggleMutedText(threadQuery.data.body),
-                  categoryNames: threadQuery.data.categories.map((item) => item.name),
-                })
-              }}
-              onHide={() => hideThreadMutation.mutate(threadQuery.data.id)}
-              onEditingCategoryToggle={threadActions.toggleEditingCategory}
-            />
+                <ThreadCardHeader
+                  thread={threadQuery.data}
+                  isEditing={isEditingThread}
+                  editingThreadCategories={editingThreadCategories}
+                  isPinPending={pinThreadMutation.isPending}
+                  isUnpinPending={unpinThreadMutation.isPending}
+                  isHidePending={hideThreadMutation.isPending}
+                  labels={{
+                    pin: t('home.pin'),
+                    unpin: t('home.unpin'),
+                    edit: t('common.edit'),
+                    archive: t('common.archive'),
+                  }}
+                  onTogglePin={() => {
+                    if (threadQuery.data.pinned) {
+                      unpinThreadMutation.mutate(threadQuery.data.id)
+                    } else {
+                      pinThreadMutation.mutate(threadQuery.data.id)
+                    }
+                  }}
+                  onStartEdit={() => threadActions.startEditThread(threadQuery.data)}
+                  onHide={() => hideThreadMutation.mutate(threadQuery.data.id)}
+                  onEditingCategoryToggle={threadActions.toggleEditingCategory}
+                />
             <div className="mt-8 pl-3 text-sm font-semibold">
               {(() => {
                 const isThreadBodyMuted = isMutedText(threadQuery.data.body)
                 const rawBody = threadQuery.data.body
-                  ? (isThreadBodyMuted ? stripMutedText(threadQuery.data.body) : threadQuery.data.body)
+                  ? (isThreadBodyMuted
+                      ? stripMutedText(threadQuery.data.body)
+                      : threadQuery.data.body)
                   : null
                 const displayTitle = rawBody ? deriveTitleFromBody(rawBody) : threadQuery.data.title
                 return (
-                  <>
-                    <span
-                      className={
-                        isThreadBodyMuted
-                          ? 'text-[var(--theme-muted)] opacity-50 line-through'
-                          : 'text-[var(--theme-ink)]'
-                      }
-                    >
-                      {displayTitle}
-                    </span>
-                  </>
+                  <span
+                    className={
+                      isThreadBodyMuted
+                        ? 'text-[var(--theme-muted)] opacity-50 line-through'
+                        : 'text-[var(--theme-ink)]'
+                    }
+                  >
+                    {displayTitle}
+                  </span>
                 )
               })()}
             </div>
@@ -334,6 +411,16 @@ export function ThreadDetailPage() {
                   })
                 }
                 onCancel={() => threadActions.cancelEditThread(threadQuery.data)}
+                onComplete={() => {
+                  if (!threadQuery.data.body) {
+                    return
+                  }
+                  toggleThreadMuteMutation.mutate({
+                    threadId: threadQuery.data.id,
+                    body: toggleMutedText(threadQuery.data.body),
+                    categoryNames: threadQuery.data.categories.map((item) => item.name),
+                  })
+                }}
                 categories={categoriesQuery.data ?? []}
                 selectedCategories={editingThreadCategories}
                 editingCategoryInput={editingCategoryInput}
@@ -351,6 +438,7 @@ export function ThreadDetailPage() {
                   save: t('common.save'),
                   saving: t('common.loading'),
                   cancel: t('common.cancel'),
+                  complete: '완료',
                   categorySearchPlaceholder: t('home.categorySearchPlaceholder'),
                   addCategory: t('home.addCategory'),
                   cancelCategory: t('common.cancel'),
@@ -381,143 +469,81 @@ export function ThreadDetailPage() {
                 ) : null
               })()
             )}
+            {dragError && <div className="mt-3 text-xs text-red-600">{dragError}</div>}
             <div className="mt-4 space-y-2 sm:mt-8">
-              {orderedEntries.map((entry) => {
-                const resolvedParentId =
-                  entry.parentEntryId && entryStructure.entryById.has(entry.parentEntryId)
-                    ? entry.parentEntryId
-                    : null
-                const children = entryStructure.childrenByParent.get(entry.id) ?? []
-                const hasChildren = children.length > 0
-                const parentChildren = resolvedParentId
-                  ? entryStructure.childrenByParent.get(resolvedParentId) ?? []
-                  : []
-                const isTopReply = resolvedParentId && parentChildren[0]?.id === entry.id
-                const isBottomReply =
-                  resolvedParentId && parentChildren[parentChildren.length - 1]?.id === entry.id
-                const isTopRoot = !resolvedParentId && entryStructure.roots[0]?.id === entry.id
-                const isBottomRoot =
-                  !resolvedParentId &&
-                  entryStructure.roots[entryStructure.roots.length - 1]?.id === entry.id
-                const index = entryIndexById.get(entry.id) ?? -1
-                const prevEntry = index > 0 ? orderedEntries[index - 1] : null
-                const nextEntry =
-                  index >= 0 && index < orderedEntries.length - 1
-                    ? orderedEntries[index + 1]
-                    : null
-                const subtreeDepth = entrySubtreeDepth.get(entry.id) ?? 1
-                let canMoveUp = true
-                let canMoveDown = true
-                if (resolvedParentId && hasChildren) {
-                  canMoveUp = false
-                  canMoveDown = false
-                } else {
-                  if (isTopRoot) {
-                    canMoveUp = false
-                  } else if (!isTopReply) {
-                    if (!prevEntry) {
-                      canMoveUp = false
-                  } else {
-                      const prevRootId = resolveRootId(prevEntry.id)
-                      const parentDepth = prevRootId ? entryDepth.get(prevRootId) ?? 1 : 1
-                      if (parentDepth + subtreeDepth > 3) {
-                        canMoveUp = false
-                      }
-                      if (isAncestor(entry.id, prevEntry.id)) {
-                        canMoveUp = false
-                      }
-                    }
+              {(() => {
+                const rendered: JSX.Element[] = []
+                orderedEntries.forEach((entry) => {
+                  const depth = entryDepth.get(entry.id) ?? 1
+                  if (renderDropIndex !== null && renderDropIndex === rendered.length) {
+                    rendered.push(renderDropIndicator(dropDepth, `drop-${entry.id}`))
                   }
-                  if (isBottomRoot) {
-                    canMoveDown = false
-                  } else if (!isBottomReply) {
-                    if (!nextEntry) {
-                      canMoveDown = false
-                  } else {
-                      const nextRootId = resolveRootId(nextEntry.id)
-                      const parentDepth = nextRootId ? entryDepth.get(nextRootId) ?? 1 : 1
-                      if (parentDepth + subtreeDepth > 3) {
-                        canMoveDown = false
-                      }
-                      if (isAncestor(entry.id, nextEntry.id)) {
-                        canMoveDown = false
-                      }
-                    }
-                  }
+                  rendered.push(
+                    <EntryCard
+                      key={entry.id}
+                      data={{
+                        entry,
+                        depth,
+                        themeEntryClass: theme.entry,
+                        highlightQuery: '',
+                      }}
+                      ui={{
+                        isEditing: editingEntryId === entry.id,
+                        editingBody: editingEntryBody,
+                        isReplyActive: activeReplyId === entry.id,
+                        replyDraft: replyDrafts[entry.id] ?? '',
+                        isEntryUpdatePending: updateEntryMutation.isPending,
+                        isEntryHidePending: hideEntryMutation.isPending,
+                        isEntryToggleMutePending: toggleEntryMuteMutation.isPending,
+                        isEntryMovePending: moveEntryToMutation.isPending,
+                        isReplyPending: createEntryMutation.isPending,
+                        dragState,
+                        replyComposerFocusId,
+                        onReplyComposerFocusHandled: () => setReplyComposerFocusId(null),
+                      }}
+                      actions={{
+                        onEditStart: () => entryActions.startEntryEdit(entry),
+                        onEditChange: entryActions.setEditingEntryBody,
+                        onEditCancel: entryActions.cancelEntryEdit,
+                        onEditSave: () =>
+                          updateEntryMutation.mutate({
+                            entryId: entry.id,
+                            body: editingEntryBody,
+                          }),
+                        onToggleMute: (nextBody) =>
+                          toggleEntryMuteMutation.mutate({ entryId: entry.id, body: nextBody }),
+                        onHide: () => hideEntryMutation.mutate(entry.id),
+                        onDragStart: handleDragStart,
+                        onDragEnd: handleDragEnd,
+                        onReplyStart: () => {
+                          setReplyComposerFocusId(`reply:${entry.id}`)
+                          replyActions.startReply(entry.id)
+                        },
+                        onReplyChange: (value) => replyActions.updateReplyDraft(entry.id, value),
+                        onReplyCancel: replyActions.cancelReply,
+                        onReplySubmit: () => {
+                          const body = replyDrafts[entry.id]?.trim()
+                          if (!body) {
+                            return
+                          }
+                          createEntryMutation.mutate({
+                            body,
+                            parentEntryId: entry.id,
+                          })
+                        },
+                      }}
+                      helpers={{
+                        handleTextareaInput,
+                        resizeTextarea,
+                      }}
+                    />,
+                  )
+                })
+                if (renderDropIndex !== null && renderDropIndex === rendered.length) {
+                  rendered.push(renderDropIndicator(dropDepth, `drop-tail`))
                 }
-                return (
-                  <EntryCard
-                    key={entry.id}
-                    data={{
-                      entry,
-                      depth: entryDepth.get(entry.id) ?? 1,
-                      themeEntryClass: theme.entry,
-                      highlightQuery: '',
-                    }}
-                    ui={{
-                      showMoveControls: true,
-                      isEditing: editingEntryId === entry.id,
-                      editingBody: editingEntryBody,
-                      isReplyActive: activeReplyId === entry.id,
-                      replyDraft: replyDrafts[entry.id] ?? '',
-                      isEntryUpdatePending: updateEntryMutation.isPending,
-                      isEntryHidePending: hideEntryMutation.isPending,
-                      isEntryToggleMutePending: toggleEntryMuteMutation.isPending,
-                      isEntryMovePending: moveEntryMutation.isPending,
-                      isMoveUpDisabled: !canMoveUp,
-                      isMoveDownDisabled: !canMoveDown,
-                      isReplyPending: createEntryMutation.isPending,
-                      replyComposerFocusId,
-                      onReplyComposerFocusHandled: () => setReplyComposerFocusId(null),
-                    }}
-                    actions={{
-                      onEditStart: () => entryActions.startEntryEdit(entry),
-                      onEditChange: entryActions.setEditingEntryBody,
-                      onEditCancel: entryActions.cancelEntryEdit,
-                      onEditSave: () =>
-                        updateEntryMutation.mutate({
-                          entryId: entry.id,
-                          body: editingEntryBody,
-                        }),
-                      onToggleMute: (nextBody) =>
-                        toggleEntryMuteMutation.mutate({ entryId: entry.id, body: nextBody }),
-                      onHide: () => hideEntryMutation.mutate(entry.id),
-                      onMoveUp: () => {
-                        if (!canMoveUp) {
-                          return
-                        }
-                        moveEntryMutation.mutate({ entryId: entry.id, direction: 'UP' })
-                      },
-                      onMoveDown: () => {
-                        if (!canMoveDown) {
-                          return
-                        }
-                        moveEntryMutation.mutate({ entryId: entry.id, direction: 'DOWN' })
-                      },
-                      onReplyStart: () => {
-                        setReplyComposerFocusId(`reply:${entry.id}`)
-                        replyActions.startReply(entry.id)
-                      },
-                      onReplyChange: (value) => replyActions.updateReplyDraft(entry.id, value),
-                      onReplyCancel: replyActions.cancelReply,
-                      onReplySubmit: () => {
-                        const body = replyDrafts[entry.id]?.trim()
-                        if (!body) {
-                          return
-                        }
-                        createEntryMutation.mutate({
-                          body,
-                          parentEntryId: entry.id,
-                        })
-                      },
-                    }}
-                    helpers={{
-                      handleTextareaInput,
-                      resizeTextarea,
-                    }}
-                  />
-                )
-              })}
+                return rendered
+              })()}
             </div>
             <EntryComposer
               value={entryBody}

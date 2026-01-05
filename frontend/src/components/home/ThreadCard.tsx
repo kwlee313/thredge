@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
-import { useMemo, type FormEvent } from 'react'
-import type { CategorySummary, ThreadDetail } from '../../lib/api'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import type { CategorySummary, EntryMovePosition, ThreadDetail } from '../../lib/api'
 import { highlightMatches } from '../../lib/highlightMatches'
 import { deriveTitleFromBody, getBodyWithoutTitle } from '../../lib/threadText'
 import { isMutedText, stripMutedText } from '../../lib/mutedText'
@@ -10,6 +10,7 @@ import { EntryCard } from './EntryCard'
 import { ThreadCardHeader } from './ThreadCardHeader'
 import { ThreadEditor } from './ThreadEditor'
 import { EntryComposer } from './EntryComposer'
+import type { EntryDragState } from './types'
 
 type ThreadCardData = {
   thread: ThreadDetail
@@ -65,7 +66,12 @@ type ThreadCardActions = {
   onEntryEditSave: (entryId: string) => void
   onEntryToggleMute: (entryId: string, body: string) => void
   onEntryHide: (entryId: string) => void
-  onEntryMove: (entryId: string, direction: 'UP' | 'DOWN', threadId: string) => void
+  onEntryMoveTo: (
+    entryId: string,
+    targetEntryId: string,
+    position: EntryMovePosition,
+    threadId: string,
+  ) => Promise<void>
   onReplyStart: (entryId: string) => void
   onReplyChange: (entryId: string, value: string) => void
   onReplyCancel: () => void
@@ -140,7 +146,7 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
     onEntryEditSave,
     onEntryToggleMute,
     onEntryHide,
-    onEntryMove,
+    onEntryMoveTo,
     onReplyStart,
     onReplyChange,
     onReplyCancel,
@@ -153,76 +159,160 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
   const rawBody = thread.body ? (isThreadBodyMuted ? stripMutedText(thread.body) : thread.body) : null
   const displayTitle = rawBody ? deriveTitleFromBody(rawBody) : thread.title
   const orderedEntries = useMemo(() => buildEntryOrder(thread.entries), [thread.entries])
-  const entryStructure = useMemo(() => {
-    const entryById = new Map(thread.entries.map((entry) => [entry.id, entry]))
-    const childrenByParent = new Map<string, typeof thread.entries>()
-    const roots: typeof thread.entries = []
-    thread.entries.forEach((entry) => {
-      const parentId = entry.parentEntryId
-      if (parentId && entryById.has(parentId)) {
-        const children = childrenByParent.get(parentId)
-        if (children) {
-          children.push(entry)
-        } else {
-          childrenByParent.set(parentId, [entry])
-        }
-      } else {
-        roots.push(entry)
-      }
+  const [dragState, setDragState] = useState<EntryDragState>({
+    activeEntryId: null,
+    overEntryId: null,
+    overPosition: null,
+  })
+  const [dragError, setDragError] = useState<string | null>(null)
+  const dragStateRef = useRef(dragState)
+  const setDragStateSafe = (updater: EntryDragState | ((prev: EntryDragState) => EntryDragState)) =>
+    setDragState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      dragStateRef.current = next
+      return next
     })
-    const byOrderIndex = (a: typeof thread.entries[number], b: typeof thread.entries[number]) =>
-      a.orderIndex === b.orderIndex
-        ? a.createdAt.localeCompare(b.createdAt)
-        : a.orderIndex - b.orderIndex
-    roots.sort(byOrderIndex)
-    childrenByParent.forEach((children) => children.sort(byOrderIndex))
-    return { entryById, childrenByParent, roots }
-  }, [thread.entries])
-  const entryIndexById = useMemo(
-    () => new Map(orderedEntries.map((entry, index) => [entry.id, index])),
-    [orderedEntries],
-  )
-  const entrySubtreeDepth = useMemo(() => {
-    const depthCache = new Map<string, number>()
-    const resolveDepth = (entryId: string): number => {
-      const cached = depthCache.get(entryId)
-      if (cached) {
-        return cached
-      }
-      const children = entryStructure.childrenByParent.get(entryId) ?? []
-      if (children.length === 0) {
-        depthCache.set(entryId, 1)
-        return 1
-      }
-      const maxChildDepth = Math.max(...children.map((child) => resolveDepth(child.id)))
-      const depth = 1 + maxChildDepth
-      depthCache.set(entryId, depth)
-      return depth
+  const resetDragState = () =>
+    setDragStateSafe({ activeEntryId: null, overEntryId: null, overPosition: null })
+
+  const computeRenderDropIndex = (state: EntryDragState) => {
+    const { activeEntryId, overEntryId, overPosition } = state
+    if (!activeEntryId || !overEntryId || !overPosition) {
+      return null
     }
-    thread.entries.forEach((entry) => {
-      resolveDepth(entry.id)
+    if (activeEntryId === overEntryId) {
+      return null
+    }
+    const overIndex = orderedEntries.findIndex((entry) => entry.id === overEntryId)
+    if (overIndex === -1) {
+      return null
+    }
+    if (overPosition === 'child') {
+      return overIndex + 1
+    }
+    return overPosition === 'before' ? overIndex : overIndex + 1
+  }
+
+  const finalizeDrag = async (state: EntryDragState) => {
+    const { activeEntryId, overEntryId, overPosition } = state
+    if (!activeEntryId || !overEntryId || !overPosition) {
+      return
+    }
+    try {
+      const position: EntryMovePosition =
+        overPosition === 'before' ? 'BEFORE' : overPosition === 'after' ? 'AFTER' : 'CHILD'
+      await onEntryMoveTo(activeEntryId, overEntryId, position, thread.id)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Reply move failed.'
+      setDragError(message)
+    }
+  }
+
+  const handleDragStart = (entryId: string) => {
+    if (isEntryMovePending) {
+      return
+    }
+    setDragError(null)
+    setDragStateSafe({ activeEntryId: entryId, overEntryId: null, overPosition: null })
+  }
+
+  const handleDragHover = (entryId: string, position: 'before' | 'after' | 'child') => {
+    if (!dragStateRef.current.activeEntryId) {
+      return
+    }
+    if (dragStateRef.current.activeEntryId === entryId) {
+      setDragStateSafe((prev) =>
+        prev.overEntryId ? { ...prev, overEntryId: null, overPosition: null } : prev,
+      )
+      return
+    }
+    setDragStateSafe((prev) => {
+      if (prev.overEntryId === entryId && prev.overPosition === position) {
+        return prev
+      }
+      return { ...prev, overEntryId: entryId, overPosition: position }
     })
-    return depthCache
-  }, [thread.entries, entryStructure.childrenByParent])
-  const resolveRootId = (entryId: string) => {
-    let currentId: string | null | undefined = entryId
-    let rootId: string | null = null
-    while (currentId) {
-      rootId = currentId
-      currentId = entryStructure.entryById.get(currentId)?.parentEntryId ?? null
-    }
-    return rootId
   }
-  const isAncestor = (ancestorId: string, entryId: string) => {
-    let currentId: string | null | undefined = entryId
-    while (currentId) {
-      if (currentId === ancestorId) {
-        return true
+
+  const handleDragEnd = () => {
+    const finalState = dragStateRef.current
+    resetDragState()
+    void finalizeDrag(finalState)
+  }
+
+  useEffect(() => {
+    if (!dragState.activeEntryId) {
+      return
+    }
+    const previousTouchAction = document.body.style.touchAction
+    const previousUserSelect = document.body.style.userSelect
+    document.body.style.touchAction = 'none'
+    document.body.style.userSelect = 'none'
+    const handleGlobalPointerUp = () => {
+      handleDragEnd()
+    }
+    const handleGlobalPointerMove = (event: PointerEvent) => {
+      const target = document.elementFromPoint(event.clientX, event.clientY)
+      if (!target) {
+        return
       }
-      currentId = entryStructure.entryById.get(currentId)?.parentEntryId ?? null
+      const entryElement = target.closest('[data-entry-id]') as HTMLElement | null
+      if (!entryElement) {
+        setDragStateSafe((prev) =>
+          prev.overEntryId ? { ...prev, overEntryId: null, overPosition: null } : prev,
+        )
+        return
+      }
+      const entryId = entryElement.getAttribute('data-entry-id')
+      if (!entryId) {
+        return
+      }
+      const rect = entryElement.getBoundingClientRect()
+      const depthAttr = entryElement.getAttribute('data-entry-depth')
+      const depth = depthAttr ? Number(depthAttr) : 1
+      const isChildZone =
+        depth < 3 && event.clientY < rect.top + rect.height * 0.8
+      const position = isChildZone
+        ? 'child'
+        : event.clientY < rect.top + rect.height / 2
+          ? 'before'
+          : 'after'
+      handleDragHover(entryId, position)
     }
-    return false
+    window.addEventListener('pointerup', handleGlobalPointerUp)
+    window.addEventListener('pointercancel', handleGlobalPointerUp)
+    window.addEventListener('pointermove', handleGlobalPointerMove)
+    return () => {
+      window.removeEventListener('pointerup', handleGlobalPointerUp)
+      window.removeEventListener('pointercancel', handleGlobalPointerUp)
+      window.removeEventListener('pointermove', handleGlobalPointerMove)
+      document.body.style.touchAction = previousTouchAction
+      document.body.style.userSelect = previousUserSelect
+    }
+  }, [dragState.activeEntryId])
+
+  const renderDropIndicator = (depth: number, key: string) => {
+    const indentPx = depth === 2 ? 24 : depth >= 3 ? 48 : 0
+    return (
+      <div key={key} className="pointer-events-none px-1">
+        <div className="relative h-1">
+          <div
+            className="absolute h-1 rounded-full bg-[var(--theme-ink)]"
+            style={{
+              left: indentPx,
+              right: 0,
+            }}
+          />
+        </div>
+      </div>
+    )
   }
+
+  const renderDropIndex = computeRenderDropIndex(dragState)
+  const dropDepth =
+    dragState.overEntryId && dragState.overEntryId !== dragState.activeEntryId
+      ? (entryDepth.get(dragState.overEntryId) ?? 1) + (dragState.overPosition === 'child' ? 1 : 0)
+      : 1
 
   return (
     <div
@@ -244,7 +334,6 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
         }}
         onTogglePin={onTogglePin}
         onStartEdit={onStartEdit}
-        onToggleMute={onToggleMute}
         onHide={onHide}
         onEditingCategoryToggle={onEditingCategoryToggle}
       />
@@ -278,6 +367,7 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
           onChange={onEditingThreadBodyChange}
           onSave={onSaveEdit}
           onCancel={onCancelEdit}
+          onComplete={onToggleMute}
           categories={categories}
           selectedCategories={editingThreadCategories}
           editingCategoryInput={editingCategoryInput}
@@ -290,6 +380,7 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
           labels={{
             save: t('common.save'),
             cancel: t('common.cancel'),
+            complete: '완료',
             categorySearchPlaceholder: t('home.categorySearchPlaceholder'),
             addCategory: t('home.addCategory'),
             cancelCategory: t('common.cancel'),
@@ -317,124 +408,64 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
           ) : null
         })()
       )}
+      {dragError && <div className="mt-3 text-xs text-red-600">{dragError}</div>}
       <div className="mt-4 space-y-2 sm:mt-8">
-        {orderedEntries.map((entry) => {
-          const resolvedParentId =
-            entry.parentEntryId && entryStructure.entryById.has(entry.parentEntryId)
-              ? entry.parentEntryId
-              : null
-          const children = entryStructure.childrenByParent.get(entry.id) ?? []
-          const hasChildren = children.length > 0
-          const parentChildren = resolvedParentId
-            ? entryStructure.childrenByParent.get(resolvedParentId) ?? []
-            : []
-          const isTopReply = resolvedParentId && parentChildren[0]?.id === entry.id
-          const isBottomReply =
-            resolvedParentId && parentChildren[parentChildren.length - 1]?.id === entry.id
-          const isTopRoot = !resolvedParentId && entryStructure.roots[0]?.id === entry.id
-          const isBottomRoot =
-            !resolvedParentId &&
-            entryStructure.roots[entryStructure.roots.length - 1]?.id === entry.id
-          const index = entryIndexById.get(entry.id) ?? -1
-          const prevEntry = index > 0 ? orderedEntries[index - 1] : null
-          const nextEntry =
-            index >= 0 && index < orderedEntries.length - 1 ? orderedEntries[index + 1] : null
-          const subtreeDepth = entrySubtreeDepth.get(entry.id) ?? 1
-          let canMoveUp = true
-          let canMoveDown = true
-          if (resolvedParentId && hasChildren) {
-            canMoveUp = false
-            canMoveDown = false
-          } else {
-            if (isTopRoot) {
-              canMoveUp = false
-            } else if (!isTopReply) {
-              if (!prevEntry) {
-                canMoveUp = false
-              } else {
-                const prevRootId = resolveRootId(prevEntry.id)
-                const parentDepth = prevRootId ? entryDepth.get(prevRootId) ?? 1 : 1
-                if (parentDepth + subtreeDepth > 3) {
-                  canMoveUp = false
-                }
-                if (isAncestor(entry.id, prevEntry.id)) {
-                  canMoveUp = false
-                }
-              }
+        {(() => {
+          const rendered: JSX.Element[] = []
+          orderedEntries.forEach((entry) => {
+            const depth = entryDepth.get(entry.id) ?? 1
+            if (renderDropIndex !== null && renderDropIndex === rendered.length) {
+              rendered.push(renderDropIndicator(dropDepth, `drop-${thread.id}`))
             }
-            if (isBottomRoot) {
-              canMoveDown = false
-            } else if (!isBottomReply) {
-              if (!nextEntry) {
-                canMoveDown = false
-              } else {
-                const nextRootId = resolveRootId(nextEntry.id)
-                const parentDepth = nextRootId ? entryDepth.get(nextRootId) ?? 1 : 1
-                if (parentDepth + subtreeDepth > 3) {
-                  canMoveDown = false
-                }
-                if (isAncestor(entry.id, nextEntry.id)) {
-                  canMoveDown = false
-                }
-              }
-            }
+            rendered.push(
+              <EntryCard
+                key={entry.id}
+                data={{
+                  entry,
+                  depth,
+                  themeEntryClass: theme.entry,
+                  highlightQuery: normalizedSearchQuery,
+                }}
+                ui={{
+                  isEditing: editingEntryId === entry.id,
+                  editingBody: editingEntryBody,
+                  isReplyActive: activeReplyId === entry.id,
+                  replyDraft: replyDrafts[entry.id] ?? '',
+                  isEntryUpdatePending,
+                  isEntryHidePending,
+                  isEntryToggleMutePending,
+                  isEntryMovePending,
+                  isReplyPending,
+                  dragState,
+                  replyComposerFocusId,
+                  onReplyComposerFocusHandled,
+                }}
+                actions={{
+                  onEditStart: () => onEntryEditStart(entry.id, entry.body),
+                  onEditChange: onEntryEditChange,
+                  onEditCancel: onEntryEditCancel,
+                  onEditSave: () => onEntryEditSave(entry.id),
+                  onToggleMute: (nextBody) => onEntryToggleMute(entry.id, nextBody),
+                  onHide: () => onEntryHide(entry.id),
+                  onDragStart: handleDragStart,
+                  onDragEnd: handleDragEnd,
+                  onReplyStart: () => onReplyStart(entry.id),
+                  onReplyChange: (value) => onReplyChange(entry.id, value),
+                  onReplyCancel: onReplyCancel,
+                  onReplySubmit: () => onReplySubmit(entry.id),
+                }}
+                helpers={{
+                  handleTextareaInput,
+                  resizeTextarea,
+                }}
+              />,
+            )
+          })
+          if (renderDropIndex !== null && renderDropIndex === rendered.length) {
+            rendered.push(renderDropIndicator(dropDepth, `drop-${thread.id}-tail`))
           }
-          return (
-            <EntryCard
-              key={entry.id}
-              data={{
-                entry,
-                depth: entryDepth.get(entry.id) ?? 1,
-                themeEntryClass: theme.entry,
-                highlightQuery: normalizedSearchQuery,
-              }}
-              ui={{
-                showMoveControls: true,
-                isEditing: editingEntryId === entry.id,
-                editingBody: editingEntryBody,
-                isReplyActive: activeReplyId === entry.id,
-                replyDraft: replyDrafts[entry.id] ?? '',
-                isEntryUpdatePending,
-                isEntryHidePending,
-                isEntryToggleMutePending,
-                isEntryMovePending,
-                isMoveUpDisabled: !canMoveUp,
-                isMoveDownDisabled: !canMoveDown,
-                isReplyPending,
-                replyComposerFocusId,
-                onReplyComposerFocusHandled,
-              }}
-              actions={{
-                onEditStart: () => onEntryEditStart(entry.id, entry.body),
-                onEditChange: onEntryEditChange,
-                onEditCancel: onEntryEditCancel,
-                onEditSave: () => onEntryEditSave(entry.id),
-                onToggleMute: (nextBody) => onEntryToggleMute(entry.id, nextBody),
-                onHide: () => onEntryHide(entry.id),
-                onMoveUp: () => {
-                  if (!canMoveUp) {
-                    return
-                  }
-                  onEntryMove(entry.id, 'UP', thread.id)
-                },
-                onMoveDown: () => {
-                  if (!canMoveDown) {
-                    return
-                  }
-                  onEntryMove(entry.id, 'DOWN', thread.id)
-                },
-                onReplyStart: () => onReplyStart(entry.id),
-                onReplyChange: (value) => onReplyChange(entry.id, value),
-                onReplyCancel: onReplyCancel,
-                onReplySubmit: () => onReplySubmit(entry.id),
-              }}
-              helpers={{
-                handleTextareaInput,
-                resizeTextarea,
-              }}
-            />
-          )
-        })}
+          return rendered
+        })()}
       </div>
       <EntryComposer
         value={newEntryDraft}

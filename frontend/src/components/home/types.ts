@@ -8,8 +8,13 @@ export type EntryCardData = {
   highlightQuery: string
 }
 
+export type EntryDragState = {
+  activeEntryId: string | null
+  overEntryId: string | null
+  overPosition: 'before' | 'after' | 'child' | null
+}
+
 export type EntryCardUi = {
-  showMoveControls?: boolean
   isEditing: boolean
   editingBody: string
   isReplyActive: boolean
@@ -18,9 +23,8 @@ export type EntryCardUi = {
   isEntryHidePending: boolean
   isEntryToggleMutePending: boolean
   isEntryMovePending: boolean
-  isMoveUpDisabled: boolean
-  isMoveDownDisabled: boolean
   isReplyPending: boolean
+  dragState?: EntryDragState
   replyComposerFocusId?: string | null
   onReplyComposerFocusHandled?: () => void
 }
@@ -32,8 +36,8 @@ export type EntryCardActions = {
   onEditSave: () => void
   onToggleMute: (nextBody: string) => void
   onHide: () => void
-  onMoveUp: () => void
-  onMoveDown: () => void
+  onDragStart?: (entryId: string) => void
+  onDragEnd?: () => void
   onReplyStart: () => void
   onReplyChange: (value: string) => void
   onReplyCancel: () => void
@@ -49,6 +53,7 @@ export type ThreadEditorLabels = {
   save: string
   saving?: string
   cancel: string
+  complete: string
   categorySearchPlaceholder: string
   addCategory: string
   cancelCategory: string
@@ -60,6 +65,7 @@ export type ThreadEditorProps = {
   onChange: (value: string) => void
   onSave: () => void
   onCancel: () => void
+  onComplete: () => void
   categories: CategorySummary[]
   selectedCategories: string[]
   editingCategoryInput: string

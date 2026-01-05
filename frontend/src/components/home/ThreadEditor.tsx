@@ -8,6 +8,7 @@ export function ThreadEditor({
   onChange,
   onSave,
   onCancel,
+  onComplete,
   categories,
   selectedCategories,
   editingCategoryInput,
@@ -194,6 +195,13 @@ export function ThreadEditor({
           disabled={isSaving}
         >
           {isSaving ? labels.saving ?? labels.save : labels.save}
+        </button>
+        <button
+          className={secondaryButtonClass}
+          type="button"
+          onClick={onComplete}
+        >
+          {labels.complete}
         </button>
         <button
           className={secondaryButtonClass}

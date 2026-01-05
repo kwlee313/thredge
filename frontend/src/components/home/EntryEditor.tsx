@@ -7,10 +7,13 @@ type EntryEditorProps = {
   onChange: (value: string) => void
   onSave: () => void
   onCancel: () => void
+  onComplete: () => void
   isSaving: boolean
+  isCompletePending?: boolean
   labels: {
     save: string
     cancel: string
+    complete: string
   }
   handleTextareaInput: (event: FormEvent<HTMLTextAreaElement>) => void
   resizeTextarea: (element: HTMLTextAreaElement | null) => void
@@ -21,7 +24,9 @@ export function EntryEditor({
   onChange,
   onSave,
   onCancel,
+  onComplete,
   isSaving,
+  isCompletePending,
   labels,
   handleTextareaInput,
   resizeTextarea,
@@ -51,6 +56,14 @@ export function EntryEditor({
           disabled={isSaving}
         >
           {labels.save}
+        </button>
+        <button
+          className={uiTokens.button.secondaryXs}
+          type="button"
+          onClick={onComplete}
+          disabled={isCompletePending}
+        >
+          {labels.complete}
         </button>
         <button
           className={uiTokens.button.secondaryXs}

@@ -16,9 +16,22 @@ enum class EntryMoveDirection {
     DOWN,
 }
 
+enum class EntryMovePosition {
+    BEFORE,
+    AFTER,
+    CHILD,
+}
+
 data class EntryMoveRequest(
     @field:jakarta.validation.constraints.NotNull
     val direction: EntryMoveDirection,
+)
+
+data class EntryMoveTargetRequest(
+    @field:NotBlank(message = ValidationMessages.ID_REQUIRED)
+    val targetEntryId: String,
+    @field:jakarta.validation.constraints.NotNull
+    val position: EntryMovePosition,
 )
 
 @JsonInclude(JsonInclude.Include.NON_NULL)

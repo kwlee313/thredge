@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useOutletContext } from 'react-router-dom'
@@ -49,6 +49,8 @@ export function SettingsPage() {
   const [newCategory, setNewCategory] = useState('')
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [editingCategoryName, setEditingCategoryName] = useState('')
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const savedAtRef = useRef<number | null>(null)
   const { control, register, handleSubmit, reset, setValue } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -77,6 +79,24 @@ export function SettingsPage() {
     applyTheme(resolveTheme(selectedThemePreset, selectedThemeCustomColor))
   }, [selectedThemePreset, selectedThemeCustomColor])
 
+  useEffect(() => {
+    if (!savedAt) {
+      return
+    }
+    const timeoutId = window.setTimeout(() => setSavedAt(null), 2000)
+    return () => window.clearTimeout(timeoutId)
+  }, [savedAt])
+
+  useEffect(() => {
+    savedAtRef.current = savedAt
+  }, [savedAt])
+
+  useEffect(() => {
+    if (savedAtRef.current) {
+      setSavedAt(null)
+    }
+  }, [selectedUiLanguage, selectedThemePreset, selectedThemeCustomColor])
+
   const customColorValue =
     normalizeThemeHex(selectedThemeCustomColor) ?? settings.themeCustomColor
   const customTheme = useMemo(
@@ -96,6 +116,7 @@ export function SettingsPage() {
       themePreset: values.themePreset,
       themeCustomColor: normalizedCustomColor,
     })
+    setSavedAt(Date.now())
   }
 
   const categoriesQuery = useQuery({
@@ -240,12 +261,25 @@ export function SettingsPage() {
           </div>
         </div>
 
-        <button
-          type="submit"
-          className={uiTokens.button.primaryMd}
-        >
-          {t('settings.save')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="submit"
+            className={uiTokens.button.primaryMd}
+          >
+            {t('settings.save')}
+          </button>
+          <div
+            className="min-h-[1rem]"
+            role="status"
+            aria-live="polite"
+          >
+            {savedAt && (
+              <span className="text-xs font-semibold text-emerald-600">
+                {t('settings.saved')}
+              </span>
+            )}
+          </div>
+        </div>
       </form>
 
       {authQuery.data && (

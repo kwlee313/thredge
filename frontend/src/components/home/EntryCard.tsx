@@ -200,17 +200,6 @@ export function EntryCard({
           <InlineIcon svg={xIcon} className="[&>svg]:h-2.5 [&>svg]:w-2.5" />
         </button>
       </div>
-      <div className="absolute bottom-2 right-2 flex items-center gap-1">
-        {depth < 3 && (
-          <button
-            className="rounded-md border border-[var(--theme-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--theme-ink)] hover:opacity-80"
-            type="button"
-            onClick={onReplyStart}
-          >
-            {t('common.reply')}
-          </button>
-        )}
-      </div>
       {isEditing ? (
         <EntryEditor
           value={editingBody}
@@ -235,10 +224,21 @@ export function EntryCard({
           >
             {highlightMatches(muted ? stripMutedText(entry.body) : entry.body, highlightQuery)}
           </div>
-          <div className="absolute bottom-2 left-2 text-xs text-[var(--theme-muted)] opacity-50">
-            {formatDistanceToNow(new Date(entry.createdAt), {
-              addSuffix: true,
-            })}
+          <div className="absolute bottom-2 left-2 flex items-center gap-2 text-xs text-[var(--theme-muted)]">
+            <span className="opacity-50">
+              {formatDistanceToNow(new Date(entry.createdAt), {
+                addSuffix: true,
+              })}
+            </span>
+            {depth < 3 && (
+              <button
+                className="text-xs font-semibold uppercase tracking-wide text-[var(--theme-muted)] opacity-50 hover:opacity-80"
+                type="button"
+                onClick={onReplyStart}
+              >
+                {t('common.reply')}
+              </button>
+            )}
           </div>
         </>
       )}

@@ -13,6 +13,7 @@ export const router = createBrowserRouter([
     element: <App />,
     children: [
       { index: true, element: <HomePage /> },
+      { path: 'categories/:categoryPath', element: <HomePage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'admin', element: <AdminPage /> },
       { path: 'threads/:id', element: <ThreadDetailPage /> },

@@ -7,7 +7,7 @@ type Options = {
 }
 
 export const useTextareaAutosize = (options: Options = {}) => {
-  const { maxHeight = 240, deps = [] } = options
+  const { maxHeight = 800, deps = [] } = options
   const resizeTextarea = useCallback(
     (element: HTMLTextAreaElement | null) => {
       if (!element) {

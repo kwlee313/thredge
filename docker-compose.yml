@@ -55,6 +55,7 @@ services:
     environment:
       FRONTEND_PORT: ${FRONTEND_PORT:-5174}
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+      VITE_DISABLE_HMR: ${VITE_DISABLE_HMR:-1}
     command: ["sh", "-lc", "npm install && npm run dev -- --host 0.0.0.0 --port ${FRONTEND_PORT:-5174}"]
     ports:
       - "${FRONTEND_PORT:-5174}:5174"

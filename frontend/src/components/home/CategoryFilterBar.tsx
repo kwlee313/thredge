@@ -14,6 +14,7 @@ type CategoryFilterBarProps = {
   selectedCategories: string[]
   uncategorizedCount: number
   uncategorizedToken: string
+  isCreateCategoryPending?: boolean
   labels: {
     title: string
     uncategorized: string
@@ -21,10 +22,13 @@ type CategoryFilterBarProps = {
     deleteCategory: string
     categorySearchPlaceholder: string
     loadMore: string
+    addCategory: string
+    cancel: string
   }
   onToggleCategory: (name: string) => void
   onToggleUncategorized: () => void
   onDeleteCategory: (id: string, name: string) => void
+  onCreateCategory?: (name: string) => void
 }
 
 export function CategoryFilterBar({
@@ -32,10 +36,12 @@ export function CategoryFilterBar({
   selectedCategories,
   uncategorizedCount,
   uncategorizedToken,
+  isCreateCategoryPending,
   labels,
   onToggleCategory,
   onToggleUncategorized,
   onDeleteCategory,
+  onCreateCategory,
 }: CategoryFilterBarProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearchFocused, setIsSearchFocused] = useState(false)
@@ -72,26 +78,21 @@ export function CategoryFilterBar({
     !isSearchFocused &&
     !isCategoryListExpanded &&
     orderedCategories.length > categoryPreviewLimit
+  const hasExactCategoryMatch = useMemo(() => {
+    if (!normalizedSearch) {
+      return false
+    }
+    return categories.some((category) => category.name.toLowerCase() === normalizedSearch)
+  }, [categories, normalizedSearch])
+  const shouldShowCreate =
+    Boolean(trimmedSearch) && !hasExactCategoryMatch && Boolean(onCreateCategory)
 
   return (
-    <div className="rounded-md border border-[var(--theme-border)] px-1.5 py-1 sm:px-3 sm:py-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-xs font-semibold uppercase tracking-wide text-[var(--theme-muted)]">
-          {labels.title}
-        </div>
-        <input
-          className="w-[110px] rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-1.5 text-xs text-[var(--theme-ink)] placeholder:text-[var(--theme-muted)] placeholder:opacity-60"
-          placeholder={labels.categorySearchPlaceholder}
-          value={searchQuery}
-          onFocus={() => setIsSearchFocused(true)}
-          onBlur={() => setIsSearchFocused(false)}
-          onChange={(event) => {
-            setIsCategoryListExpanded(false)
-            setSearchQuery(event.target.value)
-          }}
-        />
+    <div className="rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] px-1.5 py-1 sm:px-5 sm:py-4">
+      <div className="text-xs font-semibold uppercase tracking-wide text-[var(--theme-muted)]">
+        {labels.title}
       </div>
-      <div className="mt-1 flex flex-wrap gap-2 sm:mt-2">
+      <div className="mt-1 flex flex-wrap justify-center gap-2 sm:mt-2">
         <button
           className={`rounded-full border px-3 py-1 text-xs ${
             selectedCategories.includes(uncategorizedToken)
@@ -102,7 +103,13 @@ export function CategoryFilterBar({
           onClick={onToggleUncategorized}
         >
           {labels.uncategorized}{' '}
-          <span className="text-[10px] text-[var(--theme-muted)] opacity-60">
+          <span
+            className={`text-[10px] ${
+              selectedCategories.includes(uncategorizedToken)
+                ? 'text-[var(--theme-on-primary)] opacity-80'
+                : 'text-[var(--theme-muted)] opacity-60'
+            }`}
+          >
             ({uncategorizedCount})
           </span>
         </button>
@@ -120,7 +127,13 @@ export function CategoryFilterBar({
                 onClick={() => onToggleCategory(category.name)}
               >
                 {category.name}{' '}
-                <span className="text-[10px] text-[var(--theme-muted)] opacity-60">
+                <span
+                  className={`text-[10px] ${
+                    isSelected
+                      ? 'text-[var(--theme-on-primary)] opacity-80'
+                      : 'text-[var(--theme-muted)] opacity-60'
+                  }`}
+                >
                   ({category.count})
                 </span>
               </button>
@@ -146,11 +159,47 @@ export function CategoryFilterBar({
             ... {labels.loadMore}
           </button>
         )}
+        {shouldShowCreate && (
+          <div className="flex items-center gap-1">
+            <button
+              className="flex h-7 items-center justify-center rounded-full border border-[var(--theme-border)] px-2 text-[11px] font-semibold text-[var(--theme-ink)] transition-all hover:opacity-80"
+              type="button"
+              onClick={() => {
+                onCreateCategory?.(trimmedSearch)
+                setSearchQuery('')
+              }}
+              disabled={isCreateCategoryPending}
+            >
+              '{trimmedSearch}' {labels.addCategory}
+            </button>
+            <button
+              className="flex h-7 items-center justify-center rounded-full border border-[var(--theme-border)] px-2 text-[11px] font-semibold text-[var(--theme-ink)] transition-all hover:opacity-80"
+              type="button"
+              onClick={() => setSearchQuery('')}
+              disabled={isCreateCategoryPending}
+            >
+              {labels.cancel}
+            </button>
+          </div>
+        )}
         {orderedCategories.length === 0 && (
           <div className="text-xs text-[var(--theme-muted)]">
             {labels.noCategories}
           </div>
         )}
+      </div>
+      <div className="mt-4 flex justify-center">
+        <input
+          className="w-[185px] rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] pl-6 pr-4 py-1.5 text-xs text-[var(--theme-ink)] placeholder:text-[var(--theme-muted)] placeholder:opacity-60"
+          placeholder={labels.categorySearchPlaceholder}
+          value={searchQuery}
+          onFocus={() => setIsSearchFocused(true)}
+          onBlur={() => setIsSearchFocused(false)}
+          onChange={(event) => {
+            setIsCategoryListExpanded(false)
+            setSearchQuery(event.target.value)
+          }}
+        />
       </div>
     </div>
   )

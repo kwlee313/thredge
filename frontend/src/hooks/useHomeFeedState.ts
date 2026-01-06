@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   useEntryEditingState,
   useReplyDraftState,
@@ -8,11 +8,30 @@ import {
 
 const STORAGE_KEY = 'thredge.homeFeedDrafts'
 
+const parseCategoryPath = (value?: string) => {
+  if (!value) {
+    return []
+  }
+  return value
+    .split(',')
+    .map((item) => decodeURIComponent(item))
+    .filter(Boolean)
+}
+
+const buildCategoryPath = (names: string[]) =>
+  names.map((name) => encodeURIComponent(name)).join(',')
+
 type HomeFeedDrafts = {
   threadBody: string
-  newThreadCategories: string[]
   entryDrafts: Record<string, string>
   replyDrafts: Record<string, string>
+  editingThreadId?: string | null
+  editingThreadBody?: string
+  editingThreadCategories?: string[]
+  editingCategoryInput?: string
+  isAddingEditingCategory?: boolean
+  editingEntryId?: string | null
+  editingEntryBody?: string
 }
 
 type ThreadLike = {
@@ -23,6 +42,8 @@ type ThreadLike = {
 
 export const useHomeFeedState = () => {
   const [searchParams, setSearchParams] = useSearchParams()
+  const { categoryPath } = useParams<{ categoryPath?: string }>()
+  const navigate = useNavigate()
   const hasRestoredFromStorage = useRef(false)
 
   const storedDrafts = useMemo<HomeFeedDrafts | null>(() => {
@@ -41,33 +62,31 @@ export const useHomeFeedState = () => {
   }, [])
 
   const [threadBody, setThreadBody] = useState(() => storedDrafts?.threadBody ?? '')
-  const [newThreadCategories, setNewThreadCategories] = useState<string[]>(
-    () => storedDrafts?.newThreadCategories ?? [],
-  )
-
   // URL-synced states
-  const selectedCategories = useMemo(
+  const queryCategories = useMemo(
     () => searchParams.get('c')?.split(',').filter(Boolean) ?? [],
-    [searchParams]
+    [searchParams],
   )
+  const selectedCategories = useMemo(() => {
+    const pathCategories = parseCategoryPath(categoryPath)
+    if (pathCategories.length > 0) {
+      return pathCategories
+    }
+    return queryCategories
+  }, [categoryPath, queryCategories])
 
   const searchQuery = searchParams.get('q') ?? ''
   const activeComposerTab = (searchParams.get('tab') as 'new' | 'search') ?? 'new' // 'tab' param for UI state
 
   const setSelectedCategories: React.Dispatch<React.SetStateAction<string[]>> = useCallback((update) => {
-    setSearchParams((prev) => {
-      const current = prev.get('c')?.split(',').filter(Boolean) ?? []
-      const next = typeof update === 'function' ? update(current) : update
-
-      const newParams = new URLSearchParams(prev)
-      if (next.length > 0) {
-        newParams.set('c', next.join(','))
-      } else {
-        newParams.delete('c')
-      }
-      return newParams
-    }, { replace: true })
-  }, [setSearchParams])
+    const next = typeof update === 'function' ? update(selectedCategories) : update
+    const nextPath = buildCategoryPath(next)
+    const newParams = new URLSearchParams(searchParams)
+    newParams.delete('c')
+    const search = newParams.toString()
+    const targetPath = nextPath ? `/categories/${nextPath}` : '/'
+    navigate(search ? `${targetPath}?${search}` : targetPath, { replace: true })
+  }, [navigate, searchParams, selectedCategories])
 
   const setSearchQueryState = useCallback((query: string) => {
     setSearchParams((prev) => {
@@ -94,14 +113,51 @@ export const useHomeFeedState = () => {
     }, { replace: true })
   }, [setSearchParams])
 
+  useEffect(() => {
+    if (queryCategories.length === 0) {
+      return
+    }
+    const pathCategories = parseCategoryPath(categoryPath)
+    if (pathCategories.length > 0) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('c')
+        return next
+      }, { replace: true })
+      return
+    }
+    const nextPath = buildCategoryPath(queryCategories)
+    const newParams = new URLSearchParams(searchParams)
+    newParams.delete('c')
+    const search = newParams.toString()
+    navigate(search ? `/categories/${nextPath}?${search}` : `/categories/${nextPath}`, {
+      replace: true,
+    })
+  }, [
+    categoryPath,
+    navigate,
+    queryCategories,
+    searchParams,
+    setSearchParams,
+  ])
+
   const [entryDrafts, setEntryDrafts] = useState<Record<string, string>>(
     () => storedDrafts?.entryDrafts ?? {},
   )
-  const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
+  const [editingThreadId, setEditingThreadId] = useState<string | null>(
+    () => storedDrafts?.editingThreadId ?? null,
+  )
 
   const threadEditor = useThreadEditingState()
   const entryEditor = useEntryEditingState()
   const replyDraft = useReplyDraftState()
+  const {
+    editingThreadBody,
+    editingThreadCategories,
+    editingCategoryInput,
+    isAddingEditingCategory,
+  } = threadEditor.state
+  const { editingEntryId, editingEntryBody } = entryEditor.state
 
   const startEditThread = (thread: ThreadLike) => {
     setEditingThreadId(thread.id)
@@ -129,9 +185,32 @@ export const useHomeFeedState = () => {
     if (storedDrafts?.replyDrafts) {
       replyDraft.actions.setReplyDrafts(storedDrafts.replyDrafts)
     }
+    if (storedDrafts?.editingThreadId) {
+      setEditingThreadId(storedDrafts.editingThreadId)
+    }
+    if (storedDrafts?.editingThreadBody !== undefined) {
+      threadEditor.actions.setEditingThreadBody(storedDrafts.editingThreadBody)
+    }
+    if (storedDrafts?.editingThreadCategories) {
+      threadEditor.actions.setEditingThreadCategories(storedDrafts.editingThreadCategories)
+    }
+    if (storedDrafts?.editingCategoryInput !== undefined) {
+      threadEditor.actions.setEditingCategoryInput(storedDrafts.editingCategoryInput)
+    }
+    if (storedDrafts?.isAddingEditingCategory !== undefined) {
+      threadEditor.actions.setIsAddingEditingCategory(storedDrafts.isAddingEditingCategory)
+    }
+    if (storedDrafts?.editingEntryId) {
+      entryEditor.actions.setEditingEntryId(storedDrafts.editingEntryId)
+    }
+    if (storedDrafts?.editingEntryBody !== undefined) {
+      entryEditor.actions.setEditingEntryBody(storedDrafts.editingEntryBody)
+    }
   }, [
+    entryEditor.actions,
     replyDraft.actions,
     storedDrafts,
+    threadEditor.actions,
   ])
 
   useEffect(() => {
@@ -140,7 +219,13 @@ export const useHomeFeedState = () => {
     }
     const hasDrafts =
       Boolean(threadBody.trim()) ||
-      newThreadCategories.length > 0 ||
+      Boolean(editingThreadId) ||
+      Boolean(editingEntryId) ||
+      Boolean(editingThreadBody.trim()) ||
+      editingThreadCategories.length > 0 ||
+      Boolean(editingCategoryInput.trim()) ||
+      isAddingEditingCategory ||
+      Boolean(editingEntryBody.trim()) ||
       Object.values(entryDrafts).some((value) => value.trim()) ||
       Object.values(replyDraft.state.replyDrafts).some((value) => value.trim())
 
@@ -150,14 +235,26 @@ export const useHomeFeedState = () => {
     }
     const payload: HomeFeedDrafts = {
       threadBody,
-      newThreadCategories,
       entryDrafts,
       replyDrafts: replyDraft.state.replyDrafts,
+      editingThreadId,
+      editingThreadBody,
+      editingThreadCategories,
+      editingCategoryInput,
+      isAddingEditingCategory,
+      editingEntryId,
+      editingEntryBody,
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   }, [
     threadBody,
-    newThreadCategories,
+    editingThreadId,
+    editingThreadBody,
+    editingThreadCategories,
+    editingCategoryInput,
+    isAddingEditingCategory,
+    editingEntryId,
+    editingEntryBody,
     entryDrafts,
     replyDraft.state.replyDrafts,
   ])
@@ -165,7 +262,6 @@ export const useHomeFeedState = () => {
   return {
     state: {
       threadBody,
-      newThreadCategories,
       selectedCategories,
       entryDrafts,
       replyDrafts: replyDraft.state.replyDrafts,
@@ -183,7 +279,6 @@ export const useHomeFeedState = () => {
     actions: {
       thread: {
         setThreadBody,
-        setNewThreadCategories,
         setSelectedCategories,
         setEditingThreadId,
         setEditingThreadBody: threadEditor.actions.setEditingThreadBody,

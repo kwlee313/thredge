@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   useEntryEditingState,
   useReplyDraftState,
@@ -10,6 +10,13 @@ const STORAGE_PREFIX = 'thredge.threadDetailDrafts:'
 type ThreadDetailDrafts = {
   entryBody: string
   replyDrafts: Record<string, string>
+  isEditingThread?: boolean
+  editingThreadBody?: string
+  editingThreadCategories?: string[]
+  editingCategoryInput?: string
+  isAddingEditingCategory?: boolean
+  editingEntryId?: string | null
+  editingEntryBody?: string
 }
 
 type ThreadLike = {
@@ -20,6 +27,7 @@ type ThreadLike = {
 
 export const useThreadDetailState = (threadId?: string) => {
   const storageKey = threadId ? `${STORAGE_PREFIX}${threadId}` : null
+  const restoredKeyRef = useRef<string | null>(null)
   const storedDrafts = useMemo<ThreadDetailDrafts | null>(() => {
     if (typeof window === 'undefined' || !storageKey) {
       return null
@@ -36,12 +44,24 @@ export const useThreadDetailState = (threadId?: string) => {
   }, [storageKey])
 
   const [entryBody, setEntryBody] = useState(() => storedDrafts?.entryBody ?? '')
-  const [isEditingThread, setIsEditingThread] = useState(false)
+  const [isEditingThread, setIsEditingThread] = useState(
+    () => storedDrafts?.isEditingThread ?? false,
+  )
   const threadEditor = useThreadEditingState()
   const entryEditor = useEntryEditingState()
   const replyDraft = useReplyDraftState()
+  const {
+    editingThreadBody,
+    editingThreadCategories,
+    editingCategoryInput,
+    isAddingEditingCategory,
+  } = threadEditor.state
+  const { editingEntryId, editingEntryBody } = entryEditor.state
 
   const syncThread = (thread: ThreadLike) => {
+    if (isEditingThread) {
+      return
+    }
     threadEditor.actions.syncThread(thread)
   }
 
@@ -56,10 +76,31 @@ export const useThreadDetailState = (threadId?: string) => {
   }
 
   useEffect(() => {
-    if (storedDrafts?.replyDrafts) {
-      replyDraft.actions.setReplyDrafts(storedDrafts.replyDrafts)
+    if (!storageKey) {
+      return
     }
-  }, [replyDraft.actions, storedDrafts])
+    if (restoredKeyRef.current === storageKey) {
+      return
+    }
+    restoredKeyRef.current = storageKey
+
+    setEntryBody(storedDrafts?.entryBody ?? '')
+    setIsEditingThread(storedDrafts?.isEditingThread ?? false)
+    replyDraft.actions.setReplyDrafts(storedDrafts?.replyDrafts ?? {})
+    replyDraft.actions.setActiveReplyId(null)
+    threadEditor.actions.setEditingThreadBody(storedDrafts?.editingThreadBody ?? '')
+    threadEditor.actions.setEditingThreadCategories(storedDrafts?.editingThreadCategories ?? [])
+    threadEditor.actions.setEditingCategoryInput(storedDrafts?.editingCategoryInput ?? '')
+    threadEditor.actions.setIsAddingEditingCategory(storedDrafts?.isAddingEditingCategory ?? false)
+    entryEditor.actions.setEditingEntryId(storedDrafts?.editingEntryId ?? null)
+    entryEditor.actions.setEditingEntryBody(storedDrafts?.editingEntryBody ?? '')
+  }, [
+    entryEditor.actions,
+    replyDraft.actions,
+    storageKey,
+    storedDrafts,
+    threadEditor.actions,
+  ])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !storageKey) {
@@ -67,6 +108,13 @@ export const useThreadDetailState = (threadId?: string) => {
     }
     const hasDrafts =
       Boolean(entryBody.trim()) ||
+      isEditingThread ||
+      Boolean(editingThreadBody.trim()) ||
+      editingThreadCategories.length > 0 ||
+      Boolean(editingCategoryInput.trim()) ||
+      isAddingEditingCategory ||
+      Boolean(editingEntryId) ||
+      Boolean(editingEntryBody.trim()) ||
       Object.values(replyDraft.state.replyDrafts).some((value) => value.trim())
 
     if (!hasDrafts) {
@@ -76,9 +124,27 @@ export const useThreadDetailState = (threadId?: string) => {
     const payload: ThreadDetailDrafts = {
       entryBody,
       replyDrafts: replyDraft.state.replyDrafts,
+      isEditingThread,
+      editingThreadBody,
+      editingThreadCategories,
+      editingCategoryInput,
+      isAddingEditingCategory,
+      editingEntryId,
+      editingEntryBody,
     }
     window.localStorage.setItem(storageKey, JSON.stringify(payload))
-  }, [entryBody, replyDraft.state.replyDrafts, storageKey])
+  }, [
+    entryBody,
+    isEditingThread,
+    editingThreadBody,
+    editingThreadCategories,
+    editingCategoryInput,
+    isAddingEditingCategory,
+    editingEntryId,
+    editingEntryBody,
+    replyDraft.state.replyDrafts,
+    storageKey,
+  ])
 
   return {
     state: {

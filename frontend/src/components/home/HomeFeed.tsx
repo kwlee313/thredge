@@ -47,14 +47,8 @@ export function HomeFeed({ username }: HomeFeedProps) {
   const { state, actions } = useHomeFeedState()
   const [entryComposerFocusId, setEntryComposerFocusId] = useState<string | null>(null)
   const [replyComposerFocusId, setReplyComposerFocusId] = useState<string | null>(null)
-  const [categorySearch, setCategorySearch] = useState('')
-  const [focusedCategoryIndex, setFocusedCategoryIndex] = useState(0)
-  const [isCategorySearchFocused, setIsCategorySearchFocused] = useState(false)
-  const [isCategoryListExpanded, setIsCategoryListExpanded] = useState(false)
-  const categoryPreviewLimit = 10
   const {
     threadBody,
-    newThreadCategories,
     selectedCategories,
     entryDrafts,
     replyDrafts,
@@ -100,44 +94,6 @@ export function HomeFeed({ username }: HomeFeedProps) {
     queryFn: fetchCategoryCounts,
   })
 
-  const trimmedCategorySearch = categorySearch.trim()
-  const normalizedCategorySearch = trimmedCategorySearch.toLowerCase()
-  const filteredCategories = useMemo(() => {
-    const categories = categoriesQuery.data ?? []
-    if (!normalizedCategorySearch) {
-      return categories
-    }
-    return categories.filter((category) =>
-      category.name.toLowerCase().includes(normalizedCategorySearch),
-    )
-  }, [categoriesQuery.data, normalizedCategorySearch])
-  const visibleCategories =
-    isCategorySearchFocused || isCategoryListExpanded
-      ? filteredCategories
-      : filteredCategories.slice(0, categoryPreviewLimit)
-  const shouldShowCategoryExpand =
-    !isCategorySearchFocused &&
-    !isCategoryListExpanded &&
-    filteredCategories.length > categoryPreviewLimit
-  const hasExactCategoryMatch = useMemo(() => {
-    if (!normalizedCategorySearch) {
-      return false
-    }
-    return (categoriesQuery.data ?? []).some(
-      (category) => category.name.toLowerCase() === normalizedCategorySearch,
-    )
-  }, [categoriesQuery.data, normalizedCategorySearch])
-
-  useEffect(() => {
-    if (filteredCategories.length === 0) {
-      setFocusedCategoryIndex(0)
-      return
-    }
-    setFocusedCategoryIndex((prev) =>
-      Math.max(0, Math.min(prev, filteredCategories.length - 1)),
-    )
-  }, [filteredCategories])
-
   const validCategoryNames = useMemo(() => {
     return new Set((categoriesQuery.data ?? []).map((category) => category.name))
   }, [categoriesQuery.data])
@@ -147,6 +103,10 @@ export function HomeFeed({ username }: HomeFeedProps) {
       (name) => name === UNCATEGORIZED_TOKEN || validCategoryNames.has(name),
     )
   }, [selectedCategories, validCategoryNames])
+  const newThreadCategoryNames = useMemo(
+    () => normalizedSelectedCategories.filter((name) => name !== UNCATEGORIZED_TOKEN),
+    [normalizedSelectedCategories],
+  )
 
   useEffect(() => {
     if (!categoriesQuery.isSuccess) {
@@ -205,10 +165,9 @@ export function HomeFeed({ username }: HomeFeedProps) {
   })
 
   const createThreadMutation = useMutation({
-    mutationFn: () => createThread(threadBody || null, newThreadCategories),
+    mutationFn: () => createThread(threadBody || null, newThreadCategoryNames),
     onSuccess: async (created) => {
       threadActions.setThreadBody('')
-      threadActions.setNewThreadCategories([])
       await queryClient.invalidateQueries({ queryKey: queryKeys.threads.feed })
       await queryClient.invalidateQueries({ queryKey: queryKeys.threads.searchRoot })
       await queryClient.invalidateQueries({ queryKey: queryKeys.categories })
@@ -219,19 +178,18 @@ export function HomeFeed({ username }: HomeFeedProps) {
 
   const { createCategoryMutation } = useCategoryMutations({
     onCreateSuccess: (created, variables) => {
-      const target = variables.target === 'edit' ? 'edit' : 'new'
+      const target = variables.target === 'edit' ? 'edit' : 'filter'
       if (target === 'edit') {
         threadActions.setEditingThreadCategories((prev) =>
           prev.includes(created.name) ? prev : [...prev, created.name],
         )
         threadActions.setEditingCategoryInput('')
         threadActions.setIsAddingEditingCategory(false)
-      } else {
-        threadActions.setNewThreadCategories((prev) =>
-          prev.includes(created.name) ? prev : [...prev, created.name],
-        )
-        setCategorySearch('')
+        return
       }
+      threadActions.setSelectedCategories((prev) =>
+        prev.includes(created.name) ? prev : [...prev, created.name],
+      )
     },
   })
 
@@ -364,6 +322,58 @@ export function HomeFeed({ username }: HomeFeedProps) {
 
   return (
     <div className="space-y-14 sm:space-y-16">
+      <CategoryFilterBar
+        categories={
+          categoriesQuery.data?.map((category) => {
+            const globalCount = categoryCountsById.get(category.id) ?? 0
+
+            return {
+              id: category.id,
+              name: category.name,
+              count: globalCount,
+              canDelete: categoryCountsQuery.isSuccess && globalCount === 0,
+            }
+          }) ?? []
+        }
+        selectedCategories={selectedCategories}
+        uncategorizedCount={
+          categoryCountsQuery.data?.uncategorizedCount ?? 0
+        }
+        uncategorizedToken={UNCATEGORIZED_TOKEN}
+        labels={{
+          title: t('home.categories'),
+          uncategorized: t('home.uncategorized'),
+          noCategories: t('home.noCategories'),
+          deleteCategory: t('home.deleteCategory'),
+          categorySearchPlaceholder: t('home.categorySearchPlaceholder'),
+          loadMore: t('home.loadMore'),
+          addCategory: t('home.addCategory'),
+          cancel: t('common.cancel'),
+        }}
+        isCreateCategoryPending={createCategoryMutation.isPending}
+        onToggleUncategorized={() => {
+          threadActions.setSelectedCategories((prev) =>
+            prev.includes(UNCATEGORIZED_TOKEN)
+              ? prev.filter((item) => item !== UNCATEGORIZED_TOKEN)
+              : [...prev, UNCATEGORIZED_TOKEN],
+          )
+        }}
+        onToggleCategory={(name) => {
+          threadActions.setSelectedCategories((prev) =>
+            prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name],
+          )
+        }}
+        onDeleteCategory={(id, name) => {
+          const shouldDelete = window.confirm(t('home.deleteCategoryConfirm', { name }))
+          if (!shouldDelete) {
+            return
+          }
+          deleteCategoryMutation.mutate({ id, name })
+        }}
+        onCreateCategory={(name) => {
+          createCategoryMutation.mutate({ name, target: 'filter' })
+        }}
+      />
       <div className={uiTokens.card.surface}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs font-semibold">
@@ -412,128 +422,6 @@ export function HomeFeed({ username }: HomeFeedProps) {
               data-autoresize="true"
               ref={(element) => resizeTextarea(element)}
             />
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  className="w-[110px] rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-1.5 text-xs text-[var(--theme-ink)] placeholder:text-[var(--theme-muted)] placeholder:opacity-60"
-                  placeholder={t('home.categorySearchPlaceholder')}
-                  value={categorySearch}
-                  onFocus={() => {
-                    setIsCategorySearchFocused(true)
-                    if (filteredCategories.length > 0) {
-                      setFocusedCategoryIndex(0)
-                    }
-                  }}
-                  onBlur={() => setIsCategorySearchFocused(false)}
-                  onChange={(event) => {
-                    setIsCategoryListExpanded(false)
-                    setCategorySearch(event.target.value)
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'ArrowRight') {
-                      event.preventDefault()
-                      setFocusedCategoryIndex((prev) =>
-                        filteredCategories.length === 0
-                          ? 0
-                          : (prev + 1) % filteredCategories.length,
-                      )
-                      return
-                    }
-                    if (event.key === 'ArrowLeft') {
-                      event.preventDefault()
-                      setFocusedCategoryIndex((prev) =>
-                        filteredCategories.length === 0
-                          ? 0
-                          : (prev - 1 + filteredCategories.length) % filteredCategories.length,
-                      )
-                      return
-                    }
-                    if (event.key !== 'Enter') {
-                      return
-                    }
-                    const match = filteredCategories[focusedCategoryIndex]
-                    if (!match) {
-                      return
-                    }
-                    event.preventDefault()
-                    threadActions.setNewThreadCategories((prev) =>
-                      prev.includes(match.name)
-                        ? prev.filter((item) => item !== match.name)
-                        : [...prev, match.name],
-                    )
-                    if (normalizedCategorySearch) {
-                      setCategorySearch('')
-                    }
-                  }}
-                />
-                {visibleCategories.map((category, index) => {
-                  const isSelected = newThreadCategories.includes(category.name)
-                  return (
-                    <button
-                      key={category.id}
-                      className={`rounded-full border px-3 py-1 text-xs ${
-                        focusedCategoryIndex === index
-                          ? 'outline outline-2 outline-[var(--theme-primary)] outline-offset-1'
-                          : ''
-                      } ${isSelected
-                        ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-[var(--theme-on-primary)]'
-                        : 'border-[var(--theme-border)] text-[var(--theme-ink)]'
-                        }`}
-                      type="button"
-                      tabIndex={-1}
-                      onClick={() => {
-                        threadActions.setNewThreadCategories((prev) =>
-                          isSelected
-                            ? prev.filter((item) => item !== category.name)
-                            : [...prev, category.name],
-                        )
-                      }}
-                    >
-                      {category.name}
-                    </button>
-                  )
-                })}
-                {shouldShowCategoryExpand && (
-                  <button
-                    className="flex h-7 items-center justify-center rounded-full border border-[var(--theme-border)] px-2 text-[11px] font-semibold text-[var(--theme-ink)] transition-all hover:opacity-80"
-                    type="button"
-                    onClick={() => setIsCategoryListExpanded(true)}
-                  >
-                    ... {t('home.loadMore')}
-                  </button>
-                )}
-                {categoriesQuery.data?.length === 0 && (
-                  <div className="text-xs text-[var(--theme-muted)]">
-                    {t('home.noCategories')}
-                  </div>
-                )}
-                {normalizedCategorySearch && !hasExactCategoryMatch && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      className="flex h-7 items-center justify-center rounded-full border border-[var(--theme-border)] px-2 text-[11px] font-semibold text-[var(--theme-ink)] transition-all hover:opacity-80"
-                      type="button"
-                      onClick={() => {
-                        createCategoryMutation.mutate({
-                          name: trimmedCategorySearch,
-                          target: 'new',
-                        })
-                      }}
-                      disabled={createCategoryMutation.isPending}
-                    >
-                      '{trimmedCategorySearch}' {t('home.addCategory')}
-                    </button>
-                    <button
-                      className="flex h-7 items-center justify-center rounded-full border border-[var(--theme-border)] px-2 text-[11px] font-semibold text-[var(--theme-ink)] transition-all hover:opacity-80"
-                      type="button"
-                      onClick={() => setCategorySearch('')}
-                      disabled={createCategoryMutation.isPending}
-                    >
-                      {t('common.cancel')}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
             <button
               className={uiTokens.button.primaryMd}
               type="submit"
@@ -572,7 +460,6 @@ export function HomeFeed({ username }: HomeFeedProps) {
           </div>
         )}
       </div>
-
       <div className={uiTokens.card.surface}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold">
@@ -609,52 +496,6 @@ export function HomeFeed({ username }: HomeFeedProps) {
           />
         </div>
         <div className="mt-6 space-y-20 sm:mt-8 sm:space-y-24">
-          <CategoryFilterBar
-            categories={
-              categoriesQuery.data?.map((category) => {
-                const globalCount = categoryCountsById.get(category.id) ?? 0
-
-                return {
-                  id: category.id,
-                  name: category.name,
-                  count: globalCount,
-                  canDelete: categoryCountsQuery.isSuccess && globalCount === 0,
-                }
-              }) ?? []
-            }
-            selectedCategories={selectedCategories}
-            uncategorizedCount={
-              categoryCountsQuery.data?.uncategorizedCount ?? 0
-            }
-            uncategorizedToken={UNCATEGORIZED_TOKEN}
-            labels={{
-              title: t('home.categories'),
-              uncategorized: t('home.uncategorized'),
-              noCategories: t('home.noCategories'),
-              deleteCategory: t('home.deleteCategory'),
-              categorySearchPlaceholder: t('home.categorySearchPlaceholder'),
-              loadMore: t('home.loadMore'),
-            }}
-            onToggleUncategorized={() => {
-              threadActions.setSelectedCategories((prev) =>
-                prev.includes(UNCATEGORIZED_TOKEN)
-                  ? prev.filter((item) => item !== UNCATEGORIZED_TOKEN)
-                  : [...prev, UNCATEGORIZED_TOKEN],
-              )
-            }}
-            onToggleCategory={(name) => {
-              threadActions.setSelectedCategories((prev) =>
-                prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name],
-              )
-            }}
-            onDeleteCategory={(id, name) => {
-              const shouldDelete = window.confirm(t('home.deleteCategoryConfirm', { name }))
-              if (!shouldDelete) {
-                return
-              }
-              deleteCategoryMutation.mutate({ id, name })
-            }}
-          />
           {activeThreadsQuery.isLoading && (
             <div className="text-sm text-[var(--theme-muted)]">
               {t('common.loading')}

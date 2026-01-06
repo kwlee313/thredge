@@ -40,7 +40,7 @@ export default function App() {
   })
 
   return (
-    <div className="min-h-full bg-[var(--theme-soft)] text-[var(--theme-ink)]">
+    <div className="min-h-full bg-[var(--theme-base)] text-[var(--theme-ink)]">
       <header className="border-b border-[var(--theme-border)] bg-[var(--theme-surface)]">
         <div className="flex w-full items-center justify-between pl-2 pr-1 py-3 sm:mx-auto sm:max-w-3xl sm:px-4">
           <div className="font-semibold text-[var(--theme-primary)]">{t('appName')}</div>

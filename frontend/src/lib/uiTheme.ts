@@ -13,6 +13,8 @@ export type UiThemeColors = {
   onPrimary: string
   ink: string
   muted: string
+  faint: string
+  base: string
   soft: string
   surface: string
   border: string
@@ -99,9 +101,11 @@ export const buildThemeFromPrimary = (primary: string): UiThemeColors => {
     onPrimary: resolveOnPrimary(normalized),
     ink: mix(normalized, '#000000', 0.85),
     muted: mix(normalized, '#000000', 0.65),
-    soft: mix(normalized, '#ffffff', 0.86),
-    surface: mix(normalized, '#ffffff', 0.93),
-    border: mix(normalized, '#ffffff', 0.75),
+    faint: mix(normalized, '#ffffff', 0.3),
+    base: mix(normalized, '#ffffff', 0.95),
+    soft: mix(normalized, '#ffffff', 0.92),
+    surface: mix(normalized, '#ffffff', 0.97),
+    border: mix(normalized, '#ffffff', 0.84),
   }
 }
 
@@ -126,6 +130,8 @@ export const applyTheme = (theme: UiThemeColors) => {
   root.style.setProperty('--theme-on-primary', theme.onPrimary)
   root.style.setProperty('--theme-ink', theme.ink)
   root.style.setProperty('--theme-muted', theme.muted)
+  root.style.setProperty('--theme-faint', theme.faint)
+  root.style.setProperty('--theme-base', theme.base)
   root.style.setProperty('--theme-soft', theme.soft)
   root.style.setProperty('--theme-surface', theme.surface)
   root.style.setProperty('--theme-border', theme.border)

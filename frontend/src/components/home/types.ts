@@ -44,9 +44,10 @@ export type EntryCardActions = {
   onReplySubmit: () => void
 }
 
-export type EntryCardHelpers = {
-  handleTextareaInput: (event: FormEvent<HTMLTextAreaElement>) => void
-  resizeTextarea: (element: HTMLTextAreaElement | null) => void
+export type EntryCardProps = {
+  data: EntryCardData
+  ui: EntryCardUi
+  actions: EntryCardActions
 }
 
 export type ThreadEditorLabels = {
@@ -77,6 +78,4 @@ export type ThreadEditorProps = {
   onCategoryCancel: () => void
   onCategorySubmit: () => void
   labels: ThreadEditorLabels
-  handleTextareaInput: (event: FormEvent<HTMLTextAreaElement>) => void
-  resizeTextarea: (element: HTMLTextAreaElement | null) => void
 }

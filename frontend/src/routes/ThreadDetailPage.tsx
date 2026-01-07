@@ -321,7 +321,9 @@ export function ThreadDetailPage() {
   }
 
   const theme = {
-    card: 'border-[var(--theme-border)] bg-[var(--theme-surface)]',
+    card: `border-[var(--theme-border)] ${
+      threadQuery.data?.pinned ? 'bg-[var(--theme-base)]' : 'bg-[var(--theme-surface)]'
+    }`,
     entry: 'border-[var(--theme-border)] bg-[var(--theme-soft)]',
   }
 

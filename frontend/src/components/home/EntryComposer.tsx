@@ -1,4 +1,4 @@
-import { useEffect, useRef, type FormEvent } from 'react'
+import { useEffect, useRef } from 'react'
 import { AutosizeTextarea } from '../common/AutosizeTextarea'
 import { uiTokens } from '../../lib/uiTokens'
 
@@ -15,8 +15,6 @@ type EntryComposerProps = {
   isSubmitting: boolean
   labels: EntryComposerLabels
   className?: string
-  handleTextareaInput: (event: FormEvent<HTMLTextAreaElement>) => void
-  resizeTextarea: (element: HTMLTextAreaElement | null) => void
   focusId?: string
   activeFocusId?: string | null
   onFocusHandled?: () => void
@@ -30,8 +28,6 @@ export function EntryComposer({
   isSubmitting,
   labels,
   className = 'mt-2 space-y-2 sm:mt-4',
-  handleTextareaInput,
-  resizeTextarea,
   focusId,
   activeFocusId,
   onFocusHandled,
@@ -66,8 +62,6 @@ export function EntryComposer({
         placeholder={placeholder}
         value={value}
         onChange={onChange}
-        handleTextareaInput={handleTextareaInput}
-        resizeTextarea={resizeTextarea}
         inputRef={(element) => {
           textareaRef.current = element
         }}

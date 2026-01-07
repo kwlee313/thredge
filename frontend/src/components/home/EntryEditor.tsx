@@ -1,4 +1,3 @@
-import type { FormEvent } from 'react'
 import { AutosizeTextarea } from '../common/AutosizeTextarea'
 import { uiTokens } from '../../lib/uiTokens'
 
@@ -15,8 +14,6 @@ type EntryEditorProps = {
     cancel: string
     complete: string
   }
-  handleTextareaInput: (event: FormEvent<HTMLTextAreaElement>) => void
-  resizeTextarea: (element: HTMLTextAreaElement | null) => void
 }
 
 export function EntryEditor({
@@ -28,8 +25,6 @@ export function EntryEditor({
   isSaving,
   isCompletePending,
   labels,
-  handleTextareaInput,
-  resizeTextarea,
 }: EntryEditorProps) {
   return (
     <form
@@ -46,8 +41,6 @@ export function EntryEditor({
         className="min-h-[72px] w-full resize-none overflow-y-hidden rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-2 text-sm text-[var(--theme-ink)] placeholder:text-[var(--theme-muted)] placeholder:opacity-60"
         value={value}
         onChange={onChange}
-        handleTextareaInput={handleTextareaInput}
-        resizeTextarea={resizeTextarea}
       />
       <div className="flex items-center gap-2">
         <button

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import type { FormEvent } from 'react'
 
 type Options = {
@@ -7,7 +7,7 @@ type Options = {
 }
 
 export const useTextareaAutosize = (options: Options = {}) => {
-  const { maxHeight = 800, deps = [] } = options
+  const { maxHeight = 800 } = options
   const resizeTextarea = useCallback(
     (element: HTMLTextAreaElement | null) => {
       if (!element) {
@@ -27,15 +27,6 @@ export const useTextareaAutosize = (options: Options = {}) => {
     },
     [resizeTextarea],
   )
-
-  useEffect(() => {
-    const rafId = window.requestAnimationFrame(() => {
-      document
-        .querySelectorAll<HTMLTextAreaElement>('textarea[data-autoresize="true"]')
-        .forEach((element) => resizeTextarea(element))
-    })
-    return () => window.cancelAnimationFrame(rafId)
-  }, [resizeTextarea, ...deps])
 
   return { handleTextareaInput, resizeTextarea }
 }

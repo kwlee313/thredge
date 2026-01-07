@@ -2,7 +2,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { useRef } from 'react'
 import type { PointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { EntryCardActions, EntryCardData, EntryCardHelpers, EntryCardUi } from './types'
+import type { EntryCardActions, EntryCardData, EntryCardUi } from './types'
 import { highlightMatches } from '../../lib/highlightMatches'
 import { isMutedText, stripMutedText, toggleMutedText } from '../../lib/mutedText'
 import eraserIcon from '../../assets/eraser.svg?raw'
@@ -15,14 +15,12 @@ type EntryCardProps = {
   data: EntryCardData
   ui: EntryCardUi
   actions: EntryCardActions
-  helpers: EntryCardHelpers
 }
 
 export function EntryCard({
   data,
   ui,
   actions,
-  helpers,
 }: EntryCardProps) {
   const { t } = useTranslation()
   const { entry, depth, themeEntryClass, highlightQuery } = data
@@ -54,7 +52,6 @@ export function EntryCard({
     onReplyCancel,
     onReplySubmit,
   } = actions
-  const { handleTextareaInput, resizeTextarea } = helpers
   const indentClass = depth === 2 ? 'ml-6' : depth >= 3 ? 'ml-12' : ''
   const muted = isMutedText(entry.body)
   const isDragActive = Boolean(dragState?.activeEntryId)
@@ -210,8 +207,6 @@ export function EntryCard({
           isSaving={isEntryUpdatePending}
           isCompletePending={isEntryToggleMutePending}
           labels={{ save: t('common.save'), cancel: t('common.cancel'), complete: '완료' }}
-          handleTextareaInput={handleTextareaInput}
-          resizeTextarea={resizeTextarea}
         />
       ) : (
         <>
@@ -251,8 +246,6 @@ export function EntryCard({
           onCancel={onReplyCancel}
           isSubmitting={isReplyPending}
           labels={{ submit: t('common.reply'), cancel: t('common.cancel') }}
-          handleTextareaInput={handleTextareaInput}
-          resizeTextarea={resizeTextarea}
           focusId={`reply:${entry.id}`}
           activeFocusId={replyComposerFocusId}
           onFocusHandled={onReplyComposerFocusHandled}

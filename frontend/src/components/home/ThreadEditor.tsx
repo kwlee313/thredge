@@ -20,8 +20,6 @@ export function ThreadEditor({
   onCategoryCancel,
   onCategorySubmit,
   labels,
-  handleTextareaInput,
-  resizeTextarea,
 }: ThreadEditorProps) {
   const [focusedCategoryIndex, setFocusedCategoryIndex] = useState(0)
   const [isCategoryInputFocused, setIsCategoryInputFocused] = useState(false)
@@ -87,8 +85,6 @@ export function ThreadEditor({
         className="min-h-[96px] w-full resize-none overflow-y-hidden rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-2 text-sm text-[var(--theme-ink)] placeholder:text-[var(--theme-muted)] placeholder:opacity-60"
         value={value}
         onChange={onChange}
-        handleTextareaInput={handleTextareaInput}
-        resizeTextarea={resizeTextarea}
       />
       <div className="mt-4 py-2">
         <div className="space-y-2">
@@ -144,11 +140,10 @@ export function ThreadEditor({
             {visibleCategories.map((category, index) => (
               <button
                 key={category.id}
-                className={`rounded-full border border-[var(--theme-border)] px-3 py-1 text-xs text-[var(--theme-ink)] ${
-                  focusedCategoryIndex === index
-                    ? 'outline outline-2 outline-[var(--theme-primary)] outline-offset-1'
-                    : ''
-                }`}
+                className={`rounded-full border border-[var(--theme-border)] px-3 py-1 text-xs text-[var(--theme-ink)] ${focusedCategoryIndex === index
+                  ? 'outline outline-2 outline-[var(--theme-primary)] outline-offset-1'
+                  : ''
+                  }`}
                 type="button"
                 tabIndex={-1}
                 onClick={() => onToggleCategory(category.name)}

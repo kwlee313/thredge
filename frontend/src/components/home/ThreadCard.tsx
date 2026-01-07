@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, memo } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { CategorySummary, EntryMovePosition, ThreadDetail } from '../../lib/api'
 import { highlightMatches } from '../../lib/highlightMatches'
 import { deriveTitleFromBody, getBodyWithoutTitle } from '../../lib/threadText'
@@ -80,20 +81,13 @@ type ThreadCardActions = {
   onNewEntrySubmit: () => void
 }
 
-type ThreadCardHelpers = {
-  t: (key: string, options?: Record<string, unknown>) => string
-  handleTextareaInput: (event: FormEvent<HTMLTextAreaElement>) => void
-  resizeTextarea: (element: HTMLTextAreaElement | null) => void
-}
-
 type ThreadCardProps = {
   data: ThreadCardData
   ui: ThreadCardUi
   actions: ThreadCardActions
-  helpers: ThreadCardHelpers
 }
 
-export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
+export const ThreadCard = memo(function ThreadCard({ data, ui, actions }: ThreadCardProps) {
   const {
     thread,
     theme,
@@ -154,7 +148,10 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
     onNewEntryChange,
     onNewEntrySubmit,
   } = actions
-  const { t, handleTextareaInput, resizeTextarea } = helpers
+  const { t } = useTranslation() // Wait, t was passed in helpers. I need to bring useTranslation here or pass t as a separate prop if I want to keep it pure? 
+  // ThreadCard is heavy, memo is good. 
+  // t function usually stable? 
+  // Let's import useTranslation.
   const isThreadBodyMuted = isMutedText(thread.body)
   const rawBody = thread.body ? (isThreadBodyMuted ? stripMutedText(thread.body) : thread.body) : null
   const displayTitle = rawBody ? deriveTitleFromBody(rawBody) : thread.title
@@ -350,11 +347,10 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
           </span>
         ) : (
           <Link
-            className={`hover:underline ${
-              isThreadBodyMuted
-                ? 'text-[var(--theme-muted)] opacity-50 line-through'
-                : 'text-[var(--theme-ink)]'
-            }`}
+            className={`hover:underline ${isThreadBodyMuted
+              ? 'text-[var(--theme-muted)] opacity-50 line-through'
+              : 'text-[var(--theme-ink)]'
+              }`}
             to={linkTo}
           >
             {highlightMatches(displayTitle, normalizedSearchQuery)}
@@ -386,8 +382,6 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
             cancelCategory: t('common.cancel'),
             loadMore: t('home.loadMore'),
           }}
-          handleTextareaInput={handleTextareaInput}
-          resizeTextarea={resizeTextarea}
         />
       ) : (
         thread.body &&
@@ -397,11 +391,10 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
           const body = normalizedBody ? getBodyWithoutTitle(displayTitle, normalizedBody) : ''
           return body ? (
             <p
-              className={`mt-2 whitespace-pre-wrap text-sm ${
-                isThreadBodyMuted
-                  ? 'text-[var(--theme-muted)] opacity-50 line-through'
-                  : 'text-[var(--theme-ink)]'
-              }`}
+              className={`mt-2 whitespace-pre-wrap text-sm ${isThreadBodyMuted
+                ? 'text-[var(--theme-muted)] opacity-50 line-through'
+                : 'text-[var(--theme-ink)]'
+                }`}
             >
               {highlightMatches(body, normalizedSearchQuery)}
             </p>
@@ -454,10 +447,6 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
                   onReplyCancel: onReplyCancel,
                   onReplySubmit: () => onReplySubmit(entry.id),
                 }}
-                helpers={{
-                  handleTextareaInput,
-                  resizeTextarea,
-                }}
               />,
             )
           })
@@ -474,8 +463,6 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
         onSubmit={onNewEntrySubmit}
         isSubmitting={isAddEntryPending}
         labels={{ submit: t('common.addEntry'), submitting: t('common.loading') }}
-        handleTextareaInput={handleTextareaInput}
-        resizeTextarea={resizeTextarea}
         focusId={`entry:${thread.id}`}
         activeFocusId={entryComposerFocusId}
         onFocusHandled={onEntryComposerFocusHandled}
@@ -487,4 +474,4 @@ export function ThreadCard({ data, ui, actions, helpers }: ThreadCardProps) {
       </div>
     </div>
   )
-}
+})

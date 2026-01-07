@@ -1,4 +1,4 @@
-import { useEffect, useRef, type FormEvent } from 'react'
+import { useEffect, useRef } from 'react'
 import { AutosizeTextarea } from '../common/AutosizeTextarea'
 import { uiTokens } from '../../lib/uiTokens'
 
@@ -13,8 +13,6 @@ type ReplyComposerProps = {
     submit: string
     cancel: string
   }
-  handleTextareaInput: (event: FormEvent<HTMLTextAreaElement>) => void
-  resizeTextarea: (element: HTMLTextAreaElement | null) => void
   focusId?: string
   activeFocusId?: string | null
   onFocusHandled?: () => void
@@ -28,8 +26,6 @@ export function ReplyComposer({
   onCancel,
   isSubmitting,
   labels,
-  handleTextareaInput,
-  resizeTextarea,
   focusId,
   activeFocusId,
   onFocusHandled,
@@ -62,8 +58,6 @@ export function ReplyComposer({
         placeholder={placeholder}
         value={value}
         onChange={onChange}
-        handleTextareaInput={handleTextareaInput}
-        resizeTextarea={resizeTextarea}
         inputRef={(element) => {
           textareaRef.current = element
         }}

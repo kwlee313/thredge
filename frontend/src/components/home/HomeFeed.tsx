@@ -69,10 +69,14 @@ export function HomeFeed({ username }: HomeFeedProps) {
     ui: uiActions,
   } = actions
 
-  const normalizedSearchQuery = useDebouncedValue(searchQuery.trim(), 250)
-  const { handleTextareaInput, resizeTextarea } = useTextareaAutosize({
-    deps: [threadBody, editingThreadBody, editingEntryBody, entryDrafts, replyDrafts],
-  })
+  const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery)
+
+  useEffect(() => {
+    setLocalSearchQuery(searchQuery)
+  }, [searchQuery])
+
+  const normalizedSearchQuery = searchQuery.trim()
+  const { handleTextareaInput, resizeTextarea } = useTextareaAutosize() // Use it LOCALLY for the main input only
 
   const {
     selectedDate,
@@ -430,36 +434,43 @@ export function HomeFeed({ username }: HomeFeedProps) {
               {createThreadMutation.isPending ? t('common.loading') : t('home.createThread')}
             </button>
           </form>
-        ) : (
-          <div className="mt-3 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
-            <div className="relative w-full max-w-sm">
-              <input
-                className={`${uiTokens.input.base} ${uiTokens.input.paddingMdWide} pr-12`}
-                placeholder={t('home.searchPlaceholder')}
-                value={searchQuery}
-                onChange={(event) => uiActions.setSearchQuery(event.target.value)}
-              />
-              {searchQuery && (
-                <button
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--theme-muted)] hover:opacity-80"
-                type="button"
-                  onClick={() => uiActions.setSearchQuery('')}
-                  aria-label="Clear search"
-                >
-                  <InlineIcon svg={xIcon} className="[&>svg]:h-3 [&>svg]:w-3" />
-                </button>
-              )}
-            </div>
-            <button
-              className={`w-full sm:w-auto ${uiTokens.button.secondaryMd}`}
-              type="button"
-              onClick={() => uiActions.setActiveComposerTab('search')}
-            >
-              {t('home.searchTab')}
-            </button>
-          </div>
-        )}
-      </div>
+                ) : (
+                  <form
+                    className="mt-3 flex flex-col items-center gap-2 sm:flex-row sm:justify-center"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      uiActions.setSearchQuery(localSearchQuery)
+                    }}
+                  >
+                    <div className="relative w-full max-w-sm">
+                      <input
+                        className={`${uiTokens.input.base} ${uiTokens.input.paddingMdWide} pr-12`}
+                        placeholder={t('home.searchPlaceholder')}
+                        value={localSearchQuery}
+                        onChange={(event) => setLocalSearchQuery(event.target.value)}
+                      />
+                      {localSearchQuery && (
+                        <button
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--theme-muted)] hover:opacity-80"
+                          type="button"
+                          onClick={() => {
+                            setLocalSearchQuery('')
+                            uiActions.setSearchQuery('')
+                          }}
+                          aria-label="Clear search"
+                        >
+                          <InlineIcon svg={xIcon} className="[&>svg]:h-3 [&>svg]:w-3" />
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      className={`w-full sm:w-auto ${uiTokens.button.secondaryMd}`}
+                      type="submit"
+                    >
+                      {t('home.searchTab')}
+                    </button>
+                  </form>
+                )}      </div>
       <div className={uiTokens.card.surface}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold">
@@ -505,20 +516,11 @@ export function HomeFeed({ username }: HomeFeedProps) {
             <div className="text-sm text-red-600">{t('home.error')}</div>
           )}
           {filteredThreads.map((thread, index) => {
-            const theme = [
-              {
-                card: 'border-[var(--theme-border)] bg-[var(--theme-surface)]',
-                entry: 'border-[var(--theme-border)] bg-[var(--theme-soft)]',
-              },
-              {
-                card: 'border-[var(--theme-border)] bg-[var(--theme-surface)]',
-                entry: 'border-[var(--theme-border)] bg-[var(--theme-soft)]',
-              },
-              {
-                card: 'border-[var(--theme-border)] bg-[var(--theme-surface)]',
-                entry: 'border-[var(--theme-border)] bg-[var(--theme-soft)]',
-              },
-            ][index % 3]
+            const cardBg = thread.pinned ? 'bg-[var(--theme-base)]' : 'bg-[var(--theme-surface)]'
+            const theme = {
+              card: `border-[var(--theme-border)] ${cardBg}`,
+              entry: 'border-[var(--theme-border)] bg-[var(--theme-soft)]',
+            }
             const entryDepth = entryDepthByThreadId.get(thread.id) ?? new Map()
             const isEditing = editingThreadId === thread.id
 

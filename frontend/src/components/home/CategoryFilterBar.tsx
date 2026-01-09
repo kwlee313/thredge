@@ -59,10 +59,17 @@ export function CategoryFilterBar({
       category.name.toLowerCase().includes(normalizedSearch),
     )
   }, [categories, normalizedSearch])
-  const orderedCategories = useMemo(() => {
+
+  type ListItem =
+    | { type: 'header'; char: string }
+    | { type: 'category'; data: CategoryItem }
+
+  const groupedItems = useMemo(() => {
     const selectedSet = new Set(selectedCategories)
     const selected: CategoryItem[] = []
     const unselected: CategoryItem[] = []
+
+    // Split into selected and unselected
     filteredCategories.forEach((category) => {
       if (selectedSet.has(category.name)) {
         selected.push(category)
@@ -70,16 +77,45 @@ export function CategoryFilterBar({
         unselected.push(category)
       }
     })
-    return [...selected, ...unselected]
+
+    // Sort both groups alphabetically
+    const sortFn = (a: CategoryItem, b: CategoryItem) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    
+    selected.sort(sortFn)
+    unselected.sort(sortFn)
+
+    const items: ListItem[] = []
+
+    // Add selected items first (without headers)
+    selected.forEach((category) => {
+      items.push({ type: 'category', data: category })
+    })
+
+    // Add unselected items with headers
+    let lastChar = ''
+    unselected.forEach((category) => {
+      const char = category.name.charAt(0).toUpperCase()
+      if (char !== lastChar) {
+        items.push({ type: 'header', char })
+        lastChar = char
+      }
+      items.push({ type: 'category', data: category })
+    })
+
+    return items
   }, [filteredCategories, selectedCategories])
-  const visibleCategories =
+
+  const visibleItems =
     isSearchFocused || isCategoryListExpanded
-      ? orderedCategories
-      : orderedCategories.slice(0, categoryPreviewLimit)
+      ? groupedItems
+      : groupedItems.slice(0, categoryPreviewLimit)
+
   const shouldShowCategoryExpand =
     !isSearchFocused &&
     !isCategoryListExpanded &&
-    orderedCategories.length > categoryPreviewLimit
+    groupedItems.length > categoryPreviewLimit
+
   const hasExactCategoryMatch = useMemo(() => {
     if (!normalizedSearch) {
       return false
@@ -90,7 +126,7 @@ export function CategoryFilterBar({
     Boolean(trimmedSearch) && !hasExactCategoryMatch && Boolean(onCreateCategory)
   const shouldEnableListScroll = isSearchFocused || isCategoryListExpanded
   const shouldShowScrollHint =
-    shouldEnableListScroll && orderedCategories.length > categoryPreviewLimit
+    shouldEnableListScroll && groupedItems.length > categoryPreviewLimit
 
   return (
     <div className="rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] px-1.5 py-1 sm:px-5 sm:py-4">
@@ -117,7 +153,7 @@ export function CategoryFilterBar({
       </div>
       <div className="relative">
         <div
-          className={`mt-2 flex flex-wrap justify-start gap-2 ${
+          className={`mt-2 flex flex-wrap items-center justify-start gap-2 ${
             shouldEnableListScroll ? 'max-h-40 overflow-y-auto pr-1 pb-8' : ''
           }`}
         >
@@ -141,7 +177,24 @@ export function CategoryFilterBar({
             ({uncategorizedCount})
           </span>
         </button>
-        {visibleCategories.map((category) => {
+        {visibleItems.map((item, index) => {
+          if (item.type === 'header') {
+            return (
+              <button
+                key={`header-${item.char}-${index}`}
+                className="flex h-[14px] w-[13px] items-center justify-center rounded-[1px] bg-[var(--theme-primary)] text-[10px] font-bold leading-none text-[var(--theme-on-primary)] hover:brightness-110"
+                type="button"
+                onClick={() => {
+                  setSearchQuery(item.char)
+                  setIsSearchFocused(true) // Optional: focus input
+                }}
+              >
+                {item.char}
+              </button>
+            )
+          }
+
+          const category = item.data
           const isSelected = selectedCategories.includes(category.name)
           return (
             <div key={category.id} className="relative flex items-center">
@@ -210,7 +263,7 @@ export function CategoryFilterBar({
             </button>
           </div>
         )}
-        {orderedCategories.length === 0 && (
+        {groupedItems.length === 0 && (
           <div className="text-xs text-[var(--theme-muted)]">
             {labels.noCategories}
           </div>

@@ -10,6 +10,7 @@ import xIcon from '../../assets/x.svg?raw'
 import { EntryEditor } from './EntryEditor'
 import { ReplyComposer } from './ReplyComposer'
 import { InlineIcon } from '../common/InlineIcon'
+import { Tooltip } from '../common/Tooltip'
 
 type EntryCardProps = {
   data: EntryCardData
@@ -231,11 +232,13 @@ export function EntryCard({
             {highlightMatches(muted ? stripMutedText(entry.body) : entry.body, highlightQuery)}
           </div>
           <div className="absolute bottom-2 left-2 flex items-center gap-2 text-xs text-[var(--theme-muted)]">
-            <span className="opacity-50">
-              {formatDistanceToNow(new Date(entry.createdAt), {
-                addSuffix: true,
-              })}
-            </span>
+            <Tooltip content={new Date(entry.createdAt).toLocaleString()}>
+              <span className="opacity-50">
+                {formatDistanceToNow(new Date(entry.createdAt), {
+                  addSuffix: true,
+                })}
+              </span>
+            </Tooltip>
             {depth < 3 && (
               <button
                 className="text-xs font-semibold uppercase tracking-wide text-[var(--theme-muted)] opacity-50 hover:opacity-80"

@@ -1,10 +1,9 @@
 export const getBodyWithoutTitle = (title: string, body: string) => {
-  const normalizedBody = body.replace(/\r\n/g, '\n').replace(/<br\s*\/?>|<\/p>/gi, '\n')
   const trimmedTitle = title.trim()
   if (!trimmedTitle) {
-    return normalizedBody.trim()
+    return body.trim()
   }
-  let remainder = normalizedBody
+  let remainder = body
   if (remainder.startsWith(trimmedTitle)) {
     remainder = remainder.slice(trimmedTitle.length)
   } else {

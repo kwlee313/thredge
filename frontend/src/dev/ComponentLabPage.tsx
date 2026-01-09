@@ -3,7 +3,6 @@ import { EntryCard } from '../components/home/EntryCard'
 import { ThreadEditor } from '../components/home/ThreadEditor'
 import { EntryComposer } from '../components/home/EntryComposer'
 import type { CategorySummary, EntryDetail } from '../lib/api'
-import { useTextareaAutosize } from '../hooks/useTextareaAutosize'
 
 export function ComponentLabPage() {
   const [entryBody, setEntryBody] = useState('Example entry body for preview.')
@@ -13,9 +12,6 @@ export function ComponentLabPage() {
   const [editingThreadBody, setEditingThreadBody] = useState('Example thread body')
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [categoryInput, setCategoryInput] = useState('')
-  const { handleTextareaInput, resizeTextarea } = useTextareaAutosize({
-    deps: [entryBody, replyDraft, editingThreadBody],
-  })
 
   const entry: EntryDetail = {
     id: 'entry-preview',
@@ -75,10 +71,6 @@ export function ComponentLabPage() {
             onReplyCancel: () => setIsReplyActive(false),
             onReplySubmit: () => setIsReplyActive(false),
           }}
-          helpers={{
-            handleTextareaInput,
-            resizeTextarea,
-          }}
         />
       </section>
 
@@ -119,8 +111,6 @@ export function ComponentLabPage() {
             cancelCategory: 'Cancel',
             loadMore: 'Load more',
           }}
-          handleTextareaInput={handleTextareaInput}
-          resizeTextarea={resizeTextarea}
         />
       </section>
 
@@ -133,8 +123,6 @@ export function ComponentLabPage() {
           onSubmit={() => {}}
           isSubmitting={false}
           labels={{ submit: 'Add entry' }}
-          handleTextareaInput={handleTextareaInput}
-          resizeTextarea={resizeTextarea}
         />
       </section>
     </div>

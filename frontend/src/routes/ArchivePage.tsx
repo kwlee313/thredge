@@ -15,6 +15,7 @@ import { highlightMatches } from '../lib/highlightMatches'
 import { useArchivedSearch } from '../hooks/useArchivedSearch'
 import { queryKeys } from '../lib/queryKeys'
 import { uiTokens } from '../lib/uiTokens'
+import { Tooltip } from '../components/common/Tooltip'
 
 export function ArchivePage() {
   const { t } = useTranslation()
@@ -81,9 +82,9 @@ export function ArchivePage() {
           onChange={(event) => threads.setFilter(event.target.value)}
         />
         {threads.isSearching && (
-        <div className="mt-1 text-xs text-[var(--theme-muted)]">
-          {t('archive.searching')}
-        </div>
+          <div className="mt-1 text-xs text-[var(--theme-muted)]">
+            {t('archive.searching')}
+          </div>
         )}
         <div className="mt-2 space-y-2 sm:mt-3">
           {threads.isLoading && (
@@ -118,12 +119,16 @@ export function ArchivePage() {
                   {t('archive.restore')}
                 </button>
               </div>
-              <div className="text-xs text-[var(--theme-muted)] opacity-50">
-                {t('archive.lastActivity', {
-                  time: formatDistanceToNow(new Date(thread.lastActivityAt), {
-                    addSuffix: true,
-                  }),
-                })}
+              <div className="text-xs text-[var(--theme-muted)]">
+                <Tooltip content={new Date(thread.lastActivityAt).toLocaleString()}>
+                  <span className="opacity-50">
+                    {t('archive.lastActivity', {
+                      time: formatDistanceToNow(new Date(thread.lastActivityAt), {
+                        addSuffix: true,
+                      }),
+                    })}
+                  </span>
+                </Tooltip>
               </div>
             </div>
           ))}
@@ -154,9 +159,9 @@ export function ArchivePage() {
           onChange={(event) => entries.setFilter(event.target.value)}
         />
         {entries.isSearching && (
-        <div className="mt-1 text-xs text-[var(--theme-muted)]">
-          {t('archive.searching')}
-        </div>
+          <div className="mt-1 text-xs text-[var(--theme-muted)]">
+            {t('archive.searching')}
+          </div>
         )}
         <div className="mt-2 space-y-2 sm:mt-3">
           {entries.isLoading && (
@@ -174,9 +179,9 @@ export function ArchivePage() {
                 {highlightMatches(entry.body, entries.debouncedFilter)}
               </div>
               <div className="mt-1 flex items-center justify-between text-xs text-[var(--theme-muted)]">
-                <span>
+                <Tooltip content={new Date(entry.createdAt).toLocaleString()}>
                   {formatDistanceToNow(new Date(entry.createdAt), { addSuffix: true })}
-                </span>
+                </Tooltip>
                 <div className="flex items-center gap-2">
                   {entry.threadId && (
                     <Link className="text-xs text-[var(--theme-primary)] underline" to={`/threads/${entry.threadId}`}>

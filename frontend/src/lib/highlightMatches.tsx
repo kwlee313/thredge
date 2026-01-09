@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react'
 
+// URL regex: stops before <, >, whitespace, or end of string
+const URL_REGEX = /(https?:\/\/[^\s<>]+)/g
+
 // Internal helper for highlighting only
 const applyHighlighting = (text: string, query: string): ReactNode => {
   if (!query) return text
@@ -39,32 +42,41 @@ export const highlightMatches = (
   query: string,
   options?: HighlightOptions,
 ): ReactNode => {
-  const hasHtmlTags = /<\/?[a-z][\s\S]*>/i.test(text)
+  // Linkify URLs that aren't already inside <a> tags
+  const linkifiedText = text.replace(
+    /(<a\s[^>]*>.*?<\/a>)|(https?:\/\/[^\s<>]+)/gi,
+    (_match, existingAnchor, url) => {
+      if (existingAnchor) return existingAnchor // Already wrapped, keep as-is
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline break-all" onclick="event.stopPropagation()">${url}</a>`
+    },
+  )
+
+  const hasHtmlTags = /<\/?[a-z][\s\S]*>/i.test(linkifiedText)
   if (hasHtmlTags) {
-    return <span dangerouslySetInnerHTML={{ __html: text }} />
+    return <span dangerouslySetInnerHTML={{ __html: linkifiedText }} />
   }
 
   if (options?.disableLinks) {
     return applyHighlighting(text, query)
   }
 
-  // Split by URLs
-  const urlRegex = /(https?:\/\/[^\s]+)/g
-  const parts = text.split(urlRegex)
+  // For plain text without HTML, use React components for better highlighting
+  const parts = text.split(URL_REGEX)
 
   if (parts.length === 1) {
     return applyHighlighting(text, query)
   }
 
   return parts.map((part, index) => {
-    if (part.match(/^https?:\/\//)) {
+    if (URL_REGEX.test(part)) {
+      URL_REGEX.lastIndex = 0 // Reset regex state
       return (
         <a
           key={index}
           href={part}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:underline"
+          className="text-blue-600 hover:underline break-all"
           onClick={(e) => e.stopPropagation()}
         >
           {applyHighlighting(part, query)}

@@ -121,18 +121,22 @@ export const useThreadDetailState = (threadId?: string) => {
       window.localStorage.removeItem(storageKey)
       return
     }
-    const payload: ThreadDetailDrafts = {
-      entryBody,
-      replyDrafts: replyDraft.state.replyDrafts,
-      isEditingThread,
-      editingThreadBody,
-      editingThreadCategories,
-      editingCategoryInput,
-      isAddingEditingCategory,
-      editingEntryId,
-      editingEntryBody,
-    }
-    window.localStorage.setItem(storageKey, JSON.stringify(payload))
+    const timer = setTimeout(() => {
+      const payload: ThreadDetailDrafts = {
+        entryBody,
+        replyDrafts: replyDraft.state.replyDrafts,
+        isEditingThread,
+        editingThreadBody,
+        editingThreadCategories,
+        editingCategoryInput,
+        isAddingEditingCategory,
+        editingEntryId,
+        editingEntryBody,
+      }
+      window.localStorage.setItem(storageKey, JSON.stringify(payload))
+    }, 500)
+
+    return () => clearTimeout(timer)
   }, [
     entryBody,
     isEditingThread,

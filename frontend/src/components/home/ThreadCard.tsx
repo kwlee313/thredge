@@ -14,6 +14,7 @@ import { EntryCard } from './EntryCard'
 import { ThreadCardHeader } from './ThreadCardHeader'
 import { ThreadEditor } from './ThreadEditor'
 import { EntryComposer } from './EntryComposer'
+import { Tooltip } from '../common/Tooltip'
 import type { EntryDragState } from './types'
 
 type ThreadCardData = {
@@ -66,7 +67,7 @@ type ThreadCardActions = {
   onEntryEditStart: (entryId: string, body: string) => void
   onEntryEditChange: (value: string) => void
   onEntryEditCancel: () => void
-  onEntryEditSave: (entryId: string) => void
+  onEntryEditSave: (entryId: string, value?: string) => void
   onEntryToggleMute: (entryId: string, body: string) => void
   onEntryHide: (entryId: string) => void
   onEntryMoveTo: (
@@ -324,7 +325,7 @@ export const ThreadCard = memo(function ThreadCard({ data, ui, actions }: Thread
 
   return (
     <div
-      className={`relative rounded-xl border pl-2 pr-1 pt-8 pb-1 shadow-sm sm:px-6 sm:py-5 ${theme.card}`}
+      className={`relative rounded-xl border pl-2 pr-1 pt-8 pb-1 shadow-sm sm:px-6 sm:py-5 ${thread.pinned ? 'text-xs' : ''} ${theme.card}`}
     >
       <div className="pointer-events-none absolute left-0 top-0 h-0.5 w-full rounded-t-xl bg-[var(--theme-border)]" />
       <ThreadCardHeader
@@ -400,14 +401,17 @@ export const ThreadCard = memo(function ThreadCard({ data, ui, actions }: Thread
           const normalizedBody =
             thread.body && isThreadBodyMuted ? stripMutedText(thread.body) : thread.body
           const body = normalizedBody ? getBodyWithoutTitle(displayTitle, normalizedBody) : ''
-          return body ? (
+          const hasHtmlLineBreaks = /<(p|br)\s*\/?>/i.test(body)
+          // Decode HTML entities
+          const processedBody = hasHtmlLineBreaks ? body.replace(/\r?\n/g, '') : body
+          return processedBody.trim() ? (
             <p
               className={`mt-2 whitespace-pre-wrap text-sm ${isThreadBodyMuted
                 ? 'text-[var(--theme-muted)] opacity-50 line-through'
                 : 'text-[var(--theme-ink)]'
                 }`}
             >
-              {highlightMatches(body, normalizedSearchQuery)}
+              {highlightMatches(processedBody.trim(), normalizedSearchQuery)}
             </p>
           ) : null
         })()
@@ -448,7 +452,7 @@ export const ThreadCard = memo(function ThreadCard({ data, ui, actions }: Thread
                   onEditStart: () => onEntryEditStart(entry.id, entry.body),
                   onEditChange: onEntryEditChange,
                   onEditCancel: onEntryEditCancel,
-                  onEditSave: () => onEntryEditSave(entry.id),
+                  onEditSave: (val) => onEntryEditSave(entry.id, val),
                   onToggleMute: (nextBody) => onEntryToggleMute(entry.id, nextBody),
                   onHide: () => onEntryHide(entry.id),
                   onDragStart: handleDragStart,
@@ -467,21 +471,27 @@ export const ThreadCard = memo(function ThreadCard({ data, ui, actions }: Thread
           return rendered
         })()}
       </div>
-      <EntryComposer
-        value={newEntryDraft}
-        placeholder={t('common.entryPlaceholder')}
-        onChange={onNewEntryChange}
-        onSubmit={onNewEntrySubmit}
-        isSubmitting={isAddEntryPending}
-        labels={{ submit: t('common.addEntry'), submitting: t('common.loading') }}
-        focusId={`entry:${thread.id}`}
-        activeFocusId={entryComposerFocusId}
-        onFocusHandled={onEntryComposerFocusHandled}
-      />
-      <div className="mt-2 text-xs text-[var(--theme-muted)] opacity-50 sm:mt-4">
-        {t('home.lastActivity', {
-          time: formatDistanceToNow(new Date(thread.lastActivityAt), { addSuffix: true }),
-        })}
+      {!thread.pinned && (
+        <EntryComposer
+          value={newEntryDraft}
+          placeholder={t('common.entryPlaceholder')}
+          onChange={onNewEntryChange}
+          onSubmit={onNewEntrySubmit}
+          isSubmitting={isAddEntryPending}
+          labels={{ submit: t('common.addEntry'), submitting: t('common.loading') }}
+          focusId={`entry:${thread.id}`}
+          activeFocusId={entryComposerFocusId}
+          onFocusHandled={onEntryComposerFocusHandled}
+        />
+      )}
+      <div className="mt-2 text-xs text-[var(--theme-muted)] sm:mt-4">
+        <Tooltip content={new Date(thread.lastActivityAt).toLocaleString()}>
+          <span className="opacity-50">
+            {t('home.lastActivity', {
+              time: formatDistanceToNow(new Date(thread.lastActivityAt), { addSuffix: true }),
+            })}
+          </span>
+        </Tooltip>
       </div>
     </div>
   )

@@ -500,11 +500,11 @@ export function ThreadDetailPage() {
                           entryActions.setEditingEntryBody(val)
                         },
                         onEditCancel: entryActions.cancelEntryEdit,
-                        onEditSave: async () => {
+                        onEditSave: async (val) => {
                           try {
                             const updated = await updateEntryMutation.mutateAsync({
                               entryId: entry.id,
-                              body: editingEntryBody,
+                              body: val ?? editingEntryBody,
                               threadId: id,
                             })
                             if (id) {

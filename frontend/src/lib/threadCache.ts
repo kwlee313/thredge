@@ -48,23 +48,25 @@ export const updateEntryInFeed = (
   entryId: string,
   body: string,
 ) => {
-  queryClient.setQueryData(queryKeys.threads.feed, (data) => {
+  const updater = (data: any) => {
     return updateFeedPages(data, (items) =>
       items.map((thread) => ({
         ...thread,
-        entries: thread.entries.map((entry) =>
+        entries: thread.entries?.map((entry) =>
           entry.id === entryId ? { ...entry, body } : entry,
-        ),
+        ) ?? [],
       })),
     )
-  })
+  }
+  queryClient.setQueriesData({ queryKey: queryKeys.threads.feed }, updater)
+  queryClient.setQueriesData({ queryKey: queryKeys.threads.searchRoot }, updater)
 }
 
 export const updateEntryPositionInFeed = (
   queryClient: QueryClient,
   entry: EntryDetail,
 ) => {
-  queryClient.setQueryData(queryKeys.threads.feed, (data) => {
+  const updater = (data: any) => {
     return updateFeedPages(data, (items) =>
       items.map((thread) => ({
         ...thread,
@@ -80,18 +82,22 @@ export const updateEntryPositionInFeed = (
         ),
       })),
     )
-  })
+  }
+  queryClient.setQueriesData({ queryKey: queryKeys.threads.feed }, updater)
+  queryClient.setQueriesData({ queryKey: queryKeys.threads.searchRoot }, updater)
 }
 
 export const removeEntryFromFeed = (queryClient: QueryClient, entryId: string) => {
-  queryClient.setQueryData(queryKeys.threads.feed, (data) => {
+  const updater = (data: any) => {
     return updateFeedPages(data, (items) =>
       items.map((thread) => ({
         ...thread,
         entries: thread.entries.filter((entry) => entry.id !== entryId),
       })),
     )
-  })
+  }
+  queryClient.setQueriesData({ queryKey: queryKeys.threads.feed }, updater)
+  queryClient.setQueriesData({ queryKey: queryKeys.threads.searchRoot }, updater)
 }
 
 export const updateEntryInThreadDetail = (
@@ -100,16 +106,20 @@ export const updateEntryInThreadDetail = (
   entryId: string,
   body: string,
 ) => {
-  queryClient.setQueryData(queryKeys.thread.detail(threadId), (data) => {
+  console.log('updateEntryInThreadDetail called', { threadId, entryId, body })
+  queryClient.setQueryData(queryKeys.thread.detail(threadId), (data: ThreadDetail | undefined) => {
+    console.log('Current cache data for thread', threadId, data)
     if (!data || typeof data !== 'object') {
       return data
     }
     const thread = data as ThreadDetail
+    const newEntries = thread.entries.map((entry) =>
+      entry.id === entryId ? { ...entry, body } : entry,
+    )
+    console.log('New entries', newEntries)
     return {
       ...thread,
-      entries: thread.entries.map((entry) =>
-        entry.id === entryId ? { ...entry, body } : entry,
-      ),
+      entries: newEntries,
     }
   })
 }
@@ -154,5 +164,17 @@ export const removeEntryFromThreadDetail = (
       ...thread,
       entries: thread.entries.filter((entry) => entry.id !== entryId),
     }
+  })
+}
+
+export const updateEntryInEntryList = (
+  queryClient: QueryClient,
+  threadId: string,
+  entryId: string,
+  body: string,
+) => {
+  queryClient.setQueryData<EntryDetail[]>(queryKeys.threads.entries(threadId), (old) => {
+    if (!old) return old
+    return old.map((entry) => (entry.id === entryId ? { ...entry, body } : entry))
   })
 }

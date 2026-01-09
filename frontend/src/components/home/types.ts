@@ -1,4 +1,3 @@
-import type { FormEvent } from 'react'
 import type { CategorySummary, EntryDetail } from '../../lib/api'
 
 export type EntryCardData = {
@@ -33,7 +32,7 @@ export type EntryCardActions = {
   onEditStart: () => void
   onEditChange: (value: string) => void
   onEditCancel: () => void
-  onEditSave: () => void
+  onEditSave: (value?: string) => void
   onToggleMute: (nextBody: string) => void
   onHide: () => void
   onDragStart?: (entryId: string) => void

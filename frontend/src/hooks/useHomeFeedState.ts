@@ -233,19 +233,23 @@ export const useHomeFeedState = () => {
       window.localStorage.removeItem(STORAGE_KEY)
       return
     }
-    const payload: HomeFeedDrafts = {
-      threadBody,
-      entryDrafts,
-      replyDrafts: replyDraft.state.replyDrafts,
-      editingThreadId,
-      editingThreadBody,
-      editingThreadCategories,
-      editingCategoryInput,
-      isAddingEditingCategory,
-      editingEntryId,
-      editingEntryBody,
-    }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+    const timer = setTimeout(() => {
+      const payload: HomeFeedDrafts = {
+        threadBody,
+        entryDrafts,
+        replyDrafts: replyDraft.state.replyDrafts,
+        editingThreadId,
+        editingThreadBody,
+        editingThreadCategories,
+        editingCategoryInput,
+        isAddingEditingCategory,
+        editingEntryId,
+        editingEntryBody,
+      }
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+    }, 500)
+
+    return () => clearTimeout(timer)
   }, [
     threadBody,
     editingThreadId,

@@ -25,7 +25,7 @@ type ThreadActionsOptions = {
   onThreadHidden?: (threadId: string) => void
   onThreadPinned?: (updated: ThreadSummary) => void
   onThreadUnpinned?: (updated: ThreadSummary) => void
-  onEntryUpdated?: (entryId: string, body: string) => void
+  onEntryUpdated?: (entryId: string, body: string, threadId?: string | null) => void
   onEntryHidden?: (entryId: string) => void
 }
 
@@ -121,18 +121,18 @@ export const useThreadActions = (options: ThreadActionsOptions = {}) => {
   const updateEntryMutation = useMutation({
     mutationFn: ({ entryId, body }: { entryId: string; body: string; threadId?: string }) =>
       updateEntry(entryId, body),
-    onSuccess: async (_, variables) => {
-      options.onEntryUpdated?.(variables.entryId, variables.body)
-      await invalidateThreadKeys(variables.threadId ?? options.threadId)
+    onSuccess: async (updated, variables) => {
+      options.onEntryUpdated?.(updated.id, updated.body, updated.threadId)
+      await invalidateThreadKeys(variables.threadId)
     },
   })
 
   const toggleEntryMuteMutation = useMutation({
     mutationFn: ({ entryId, body }: { entryId: string; body: string; threadId?: string }) =>
       updateEntry(entryId, body),
-    onSuccess: async (_, variables) => {
-      options.onEntryUpdated?.(variables.entryId, variables.body)
-      await invalidateThreadKeys(variables.threadId ?? options.threadId)
+    onSuccess: async (updated, variables) => {
+      options.onEntryUpdated?.(updated.id, updated.body, updated.threadId)
+      await invalidateThreadKeys(variables.threadId)
     },
   })
 

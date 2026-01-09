@@ -11,16 +11,13 @@ import {
   searchThreadsPage,
   type FeedFilterOptions,
 } from '../../lib/api'
-import { useDebouncedValue } from '../../lib/useDebouncedValue'
 import { toggleMutedText } from '../../lib/mutedText'
-import xIcon from '../../assets/x.svg?raw'
 import { CategoryFilterBar } from './CategoryFilterBar'
 import { DateFilter } from './DateFilter'
 import { ThreadCard } from './ThreadCard'
 import { NewThreadComposer } from './NewThreadComposer'
 import { SearchForm } from './SearchForm'
 import { useDateFilter } from '../../hooks/useDateFilter'
-import { InlineIcon } from '../common/InlineIcon'
 import { useThreadActions } from '../../hooks/useThreadActions'
 import { THREAD_LIST_INVALIDATIONS } from '../../hooks/threadActionPresets'
 import { useHomeFeedState } from '../../hooks/useHomeFeedState'
@@ -33,6 +30,7 @@ import {
   removeThreadFromFeed,
   setThreadPinnedInFeed,
   updateEntryInFeed,
+  updateEntryInEntryList,
 } from '../../lib/threadCache'
 
 type HomeFeedProps = {
@@ -239,11 +237,14 @@ export function HomeFeed({ username }: HomeFeedProps) {
     onThreadUnpinned: (updated) => {
       setThreadPinnedInFeed(queryClient, updated, false)
     },
-    onEntryUpdated: (entryId, body) => {
+    onEntryUpdated: (entryId, body, threadId) => {
       if (editingEntryId === entryId) {
         entryActions.cancelEntryEdit()
       }
       updateEntryInFeed(queryClient, entryId, body)
+      if (threadId) {
+        updateEntryInEntryList(queryClient, threadId, entryId, body)
+      }
     },
     onEntryHidden: (entryId) => {
       removeEntryFromFeed(queryClient, entryId)
@@ -458,7 +459,7 @@ export function HomeFeed({ username }: HomeFeedProps) {
           {activeThreadsQuery.isError && (
             <div className="text-sm text-red-600">{t('home.error')}</div>
           )}
-          {filteredThreads.map((thread, index) => {
+          {filteredThreads.map((thread) => {
             const cardBg = thread.pinned ? 'bg-[var(--theme-base)]' : 'bg-[var(--theme-surface)]'
             const theme = {
               card: `border-[var(--theme-border)] ${cardBg}`,
@@ -542,13 +543,14 @@ export function HomeFeed({ username }: HomeFeedProps) {
                     entryActions.startEntryEdit({ id: entryId, body }),
                   onEntryEditChange: entryActions.setEditingEntryBody,
                   onEntryEditCancel: entryActions.cancelEntryEdit,
-                  onEntryEditSave: (entryId) => {
-                    if (!editingEntryBody.trim()) {
+                  onEntryEditSave: (entryId, val) => {
+                    const bodyToSave = val ?? editingEntryBody
+                    if (!bodyToSave.trim()) {
                       return
                     }
                     updateEntryMutation.mutate({
                       entryId,
-                      body: editingEntryBody,
+                      body: bodyToSave,
                       threadId: thread.id,
                     })
                   },

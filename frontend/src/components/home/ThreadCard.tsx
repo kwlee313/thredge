@@ -373,31 +373,33 @@ export const ThreadCard = memo(function ThreadCard({ data, ui, actions }: Thread
         </div>
       )}
       {isEditing ? (
-        <ThreadEditor
-          value={editingThreadBody}
-          onChange={onEditingThreadBodyChange}
-          onSave={onSaveEdit}
-          onCancel={onCancelEdit}
-          onComplete={onToggleMute}
-          categories={categories}
-          selectedCategories={editingThreadCategories}
-          editingCategoryInput={editingCategoryInput}
-          isCreateCategoryPending={isCreateCategoryPending}
-          isSaving={isUpdateThreadPending}
-          onToggleCategory={onEditingCategoryToggle}
-          onCategoryInputChange={onEditingCategoryInputChange}
-          onCategoryCancel={onEditingCategoryCancel}
-          onCategorySubmit={onEditingCategorySubmit}
-          labels={{
-            save: t('common.save'),
-            cancel: t('common.cancel'),
-            complete: '완료',
-            categorySearchPlaceholder: t('home.categorySearchPlaceholder'),
-            addCategory: t('home.addCategory'),
-            cancelCategory: t('common.cancel'),
-            loadMore: t('home.loadMore'),
-          }}
-        />
+        <div className={displayTitle ? '' : 'mt-6'}>
+          <ThreadEditor
+            value={editingThreadBody}
+            onChange={onEditingThreadBodyChange}
+            onSave={onSaveEdit}
+            onCancel={onCancelEdit}
+            onComplete={onToggleMute}
+            categories={categories}
+            selectedCategories={editingThreadCategories}
+            editingCategoryInput={editingCategoryInput}
+            isCreateCategoryPending={isCreateCategoryPending}
+            isSaving={isUpdateThreadPending}
+            onToggleCategory={onEditingCategoryToggle}
+            onCategoryInputChange={onEditingCategoryInputChange}
+            onCategoryCancel={onEditingCategoryCancel}
+            onCategorySubmit={onEditingCategorySubmit}
+            labels={{
+              save: t('common.save'),
+              cancel: t('common.cancel'),
+              complete: '완료',
+              categorySearchPlaceholder: t('home.categorySearchPlaceholder'),
+              addCategory: t('home.addCategory'),
+              cancelCategory: t('common.cancel'),
+              loadMore: t('home.loadMore'),
+            }}
+          />
+        </div>
       ) : (
         thread.body &&
         (() => {

@@ -405,51 +405,63 @@ export function ThreadDetailPage() {
               )
             })()}
             {isEditingThread ? (
-              <ThreadEditor
-                value={editingThreadBody}
-                onChange={threadActions.setEditingThreadBody}
-                onSave={() =>
-                  updateThreadMutation.mutate({
-                    threadId: threadQuery.data.id,
-                    body: editingThreadBody,
-                    categoryNames: editingThreadCategories,
-                  })
-                }
-                onCancel={() => threadActions.cancelEditThread(threadQuery.data)}
-                onComplete={() => {
-                  if (!threadQuery.data.body) {
-                    return
+              <div
+                className={(() => {
+                  const rawBody = threadQuery.data.body
+                    ? (isMutedText(threadQuery.data.body)
+                      ? stripMutedText(threadQuery.data.body)
+                      : threadQuery.data.body)
+                    : null
+                  const derivedTitle = rawBody ? deriveTitleFromBody(rawBody) : null
+                  return derivedTitle ? '' : 'mt-6'
+                })()}
+              >
+                <ThreadEditor
+                  value={editingThreadBody}
+                  onChange={threadActions.setEditingThreadBody}
+                  onSave={() =>
+                    updateThreadMutation.mutate({
+                      threadId: threadQuery.data.id,
+                      body: editingThreadBody,
+                      categoryNames: editingThreadCategories,
+                    })
                   }
-                  toggleThreadMuteMutation.mutate({
-                    threadId: threadQuery.data.id,
-                    body: toggleMutedText(threadQuery.data.body),
-                    categoryNames: threadQuery.data.categories.map((item) => item.name),
-                  })
-                }}
-                categories={categoriesQuery.data ?? []}
-                selectedCategories={editingThreadCategories}
-                editingCategoryInput={editingCategoryInput}
-                isCreateCategoryPending={createCategoryMutation.isPending}
-                isSaving={updateThreadMutation.isPending}
-                buttonSize="md"
-                onToggleCategory={threadActions.toggleEditingCategory}
-                onCategoryInputChange={threadActions.setEditingCategoryInput}
-                onCategoryCancel={() => {
-                  threadActions.setEditingCategoryInput('')
-                  threadActions.setIsAddingEditingCategory(false)
-                }}
-                onCategorySubmit={submitCategory}
-                labels={{
-                  save: t('common.save'),
-                  saving: t('common.loading'),
-                  cancel: t('common.cancel'),
-                  complete: '완료',
-                  categorySearchPlaceholder: t('home.categorySearchPlaceholder'),
-                  addCategory: t('home.addCategory'),
-                  cancelCategory: t('common.cancel'),
-                  loadMore: t('home.loadMore'),
-                }}
-              />
+                  onCancel={() => threadActions.cancelEditThread(threadQuery.data)}
+                  onComplete={() => {
+                    if (!threadQuery.data.body) {
+                      return
+                    }
+                    toggleThreadMuteMutation.mutate({
+                      threadId: threadQuery.data.id,
+                      body: toggleMutedText(threadQuery.data.body),
+                      categoryNames: threadQuery.data.categories.map((item) => item.name),
+                    })
+                  }}
+                  categories={categoriesQuery.data ?? []}
+                  selectedCategories={editingThreadCategories}
+                  editingCategoryInput={editingCategoryInput}
+                  isCreateCategoryPending={createCategoryMutation.isPending}
+                  isSaving={updateThreadMutation.isPending}
+                  buttonSize="md"
+                  onToggleCategory={threadActions.toggleEditingCategory}
+                  onCategoryInputChange={threadActions.setEditingCategoryInput}
+                  onCategoryCancel={() => {
+                    threadActions.setEditingCategoryInput('')
+                    threadActions.setIsAddingEditingCategory(false)
+                  }}
+                  onCategorySubmit={submitCategory}
+                  labels={{
+                    save: t('common.save'),
+                    saving: t('common.loading'),
+                    cancel: t('common.cancel'),
+                    complete: '완료',
+                    categorySearchPlaceholder: t('home.categorySearchPlaceholder'),
+                    addCategory: t('home.addCategory'),
+                    cancelCategory: t('common.cancel'),
+                    loadMore: t('home.loadMore'),
+                  }}
+                />
+              </div>
             ) : (
               threadQuery.data.body &&
               (() => {
